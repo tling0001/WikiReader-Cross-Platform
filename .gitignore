@@ -3,3 +3,6 @@ dist/
 .env
 .DS_Store
 src-tauri/target/
+
+# Generated Tauri mobile projects and build output
+src-tauri/gen/

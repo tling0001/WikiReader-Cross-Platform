@@ -5,6 +5,24 @@ type Entry = { title: string; lang: string; visited: number; description?: strin
 type Section = 'home' | 'history' | 'saved' | 'settings' | 'about';
 const readStore = <T,>(key: string, fallback: T): T => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) as T : fallback; } catch { return fallback; } };
 const writeStore = (key: string, value: unknown) => localStorage.setItem(key, JSON.stringify(value));
+type CachedArticle = { html: string; savedAt: number };
+const ARTICLE_CACHE_KEY = 'wr-article-cache';
+const getCachedArticle = (lang: string, title: string): string => {
+  try {
+    const cache = readStore<Record<string, CachedArticle>>(ARTICLE_CACHE_KEY, {});
+    return cache[`${lang}:${title}`]?.html ?? '';
+  } catch { return ''; }
+};
+const cacheArticle = (lang: string, title: string, html: string) => {
+  // Keep the cache bounded so localStorage remains available for settings/history.
+  if (!html || html.length > 350_000) return;
+  try {
+    const cache = readStore<Record<string, CachedArticle>>(ARTICLE_CACHE_KEY, {});
+    cache[`${lang}:${title}`] = { html, savedAt: Date.now() };
+    const recent = Object.entries(cache).sort((a, b) => b[1].savedAt - a[1].savedAt).slice(0, 5);
+    writeStore(ARTICLE_CACHE_KEY, Object.fromEntries(recent));
+  } catch { /* A full browser storage quota must not interrupt reading. */ }
+};
 const titleToPath = (title: string) => encodeURIComponent(title.replaceAll(' ', '_'));
 const api = async <T,>(url: string): Promise<T> => { const response = await fetch(url, { headers: { 'Api-User-Agent': 'WikiReader/2.5.5 (desktop reader)' } }); if (!response.ok) throw new Error(`Wikipedia returned ${response.status}`); return response.json() as Promise<T>; };
 
@@ -58,19 +76,39 @@ export default function App() {
     return () => { active = false; window.clearTimeout(timer); };
   }, [query, lang]);
 
-  const openArticle = useCallback(async (title: string, push = true) => {
+  const openArticle = useCallback(async (title: string, push = true, requestedLang = lang) => {
     setError(''); setLoading(true); setSection('home'); setQuery(''); setSuggestions([]); setShowContents(false);
     try {
-      const data = await api<Page>(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${titleToPath(title)}`);
-      setArticle(data); setArticleHtml('');
+      const data = await api<Page>(`https://${requestedLang}.wikipedia.org/api/rest_v1/page/summary/${titleToPath(title)}`);
+      setArticle({ ...data, lang: requestedLang }); setArticleHtml('');
       if (push) setStack(prev => [...prev, data.title || title]);
-      const entry: Entry = { title: data.title || title, lang, visited: Date.now(), description: data.description, thumbnail: data.thumbnail?.source };
-      setHistory(prev => [entry, ...prev.filter(e => !(e.title === entry.title && e.lang === lang))].slice(0, 500));
+      const entry: Entry = { title: data.title || title, lang: requestedLang, visited: Date.now(), description: data.description, thumbnail: data.thumbnail?.source };
+      setHistory(prev => [entry, ...prev.filter(e => !(e.title === entry.title && e.lang === requestedLang))].slice(0, 500));
       try {
-        const response = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/html/${titleToPath(data.title || title)}`, { headers: { 'Api-User-Agent': 'WikiReader/2.5.5 (desktop reader)' } });
-        if (response.ok) setArticleHtml(await response.text());
-      } catch { /* summary remains readable if full HTML is unavailable */ }
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not load this article.'); }
+        const response = await fetch(`https://${requestedLang}.wikipedia.org/api/rest_v1/page/html/${titleToPath(data.title || title)}`, { headers: { 'Api-User-Agent': 'WikiReader/2.5.5 (desktop reader)' } });
+        if (response.ok) {
+          const html = await response.text();
+          setArticleHtml(html);
+          cacheArticle(requestedLang, data.title || title, html);
+        } else {
+          setArticleHtml(getCachedArticle(requestedLang, data.title || title));
+        }
+      } catch {
+        // Use the last successfully rendered page when the network is unavailable.
+        setArticleHtml(getCachedArticle(requestedLang, data.title || title));
+      }
+    } catch (e) {
+      const cachedHtml = getCachedArticle(requestedLang, title);
+      if (cachedHtml) {
+        setArticle({ title, lang: requestedLang });
+        setArticleHtml(cachedHtml);
+        if (push) setStack(prev => [...prev, title]);
+        const entry: Entry = { title, lang: requestedLang, visited: Date.now() };
+        setHistory(prev => [entry, ...prev.filter(item => !(item.title === title && item.lang === requestedLang))].slice(0, 500));
+      } else {
+        setError(e instanceof Error ? e.message : 'Could not load this article.');
+      }
+    }
     finally { setLoading(false); }
   }, [lang]);
 
@@ -119,7 +157,7 @@ export default function App() {
         {error && <div className="error-banner"><m3e-icon name="error"/>{error}<m3e-button variant="text" onClick={() => setError('')}>Dismiss</m3e-button></div>}
         <div className="workspace">
           {section === 'home' && (article ? <ArticleView article={article} html={articleHtml} loading={loading} isSaved={isSaved} onBack={back} onSave={toggleSaved} showContents={showContents} setShowContents={setShowContents} fontScale={fontScale} /> : <HomeView feed={feed} loading={feed.length === 0} onOpen={title => void openArticle(title)} onRandom={randomArticle} />)}
-          {section === 'history' && <EntryList entries={history} emptyIcon="history" emptyTitle="Your reading history is empty" emptyText="Articles you read will appear here." actionLabel="Clear history" onAction={() => setHistory([])} onOpen={e => { setLang(e.lang); void openArticle(e.title); }} />}
+          {section === 'history' && <EntryList entries={history} emptyIcon="history" emptyTitle="Your reading history is empty" emptyText="Articles you read will appear here." actionLabel="Clear history" onAction={() => setHistory([])} onOpen={e => { setLang(e.lang); void openArticle(e.title, true, e.lang); }} />}
           {section === 'saved' && <EntryList entries={saved} emptyIcon="bookmark" emptyTitle="No saved articles yet" emptyText="Save articles while reading to keep them close at hand." actionLabel="Remove all" onAction={() => setSaved([])} onOpen={e => { setLang(e.lang); void openArticle(e.title); }} onRemove={e => setSaved(prev => prev.filter(x => x.title !== e.title || x.lang !== e.lang))} />}
           {section === 'settings' && <div className="settings-page"><section className="settings-intro"><span className="section-kicker">PERSONALIZE</span><h2>Make reading yours</h2><p>Adjust the reading environment to your preferences.</p></section><m3e-card variant="outlined" className="settings-card"><div className="setting-row"><div className="setting-icon"><m3e-icon name="contrast"/></div><div className="setting-copy"><strong>Appearance</strong><span>Choose your preferred color scheme</span></div><select value={scheme} onChange={e => setScheme(e.target.value)}><option value="auto">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div><m3e-divider/><div className="setting-row"><div className="setting-icon"><m3e-icon name="palette"/></div><div className="setting-copy"><strong>Accent color</strong><span>Color used for highlights and controls</span></div><div className="swatches">{['#6750a4','#006a6a','#8c4a60','#415f91','#795900'].map(c => <button aria-label={`Set accent ${c}`} key={c} className={`swatch ${accent === c ? 'chosen' : ''}`} style={{background:c}} onClick={() => setAccent(c)}/>)}</div></div><m3e-divider/><div className="setting-row"><div className="setting-icon"><m3e-icon name="format_size"/></div><div className="setting-copy"><strong>Article text size</strong><span>Adjust the size of article content</span></div><div className="font-controls"><m3e-icon-button title="Decrease text size" disabled={fontScale <= 80} onClick={() => setFontScale(v => Math.max(80, v - 10))}><m3e-icon name="remove"/></m3e-icon-button><strong>{fontScale}%</strong><m3e-icon-button title="Increase text size" disabled={fontScale >= 140} onClick={() => setFontScale(v => Math.min(140, v + 10))}><m3e-icon name="add"/></m3e-icon-button></div></div><m3e-divider/><div className="setting-row"><div className="setting-icon"><m3e-icon name="visibility"/></div><div className="setting-copy"><strong>Immersive mode</strong><span>Hide extra chrome and focus on the article</span></div><m3e-switch checked={immersive} onClick={() => setImmersive(v => !v)}/></div></m3e-card><m3e-card variant="outlined" className="settings-card"><div className="setting-row"><div className="setting-icon"><m3e-icon name="database"/></div><div className="setting-copy"><strong>Local data</strong><span>History and saved articles are stored on this device.</span></div><m3e-button variant="outlined" onClick={() => { setHistory([]); setSaved([]); }}>Clear data</m3e-button></div></m3e-card><p className="settings-footnote">WikiReader is an independent reader and is not affiliated with the Wikimedia Foundation.</p></div>}
           {section === 'about' && <div className="about-page"><div className="about-logo"><m3e-icon name="menu_book" filled/></div><span className="section-kicker">ABOUT THE APP</span><h2>WikiReader</h2><p className="about-lede">A calmer way to explore the world’s knowledge.</p><m3e-card variant="outlined" className="about-card"><div className="about-row"><span>Version</span><strong>2.5.5 desktop</strong></div><m3e-divider/><div className="about-row"><span>Reading content</span><strong>Wikipedia</strong></div><m3e-divider/><div className="about-row"><span>Interface</span><strong>M3E components</strong></div><m3e-divider/><p>Article text, images, and metadata are provided by Wikipedia and Wikimedia projects. Wikipedia content is available under its respective open licenses.</p><m3e-button variant="tonal" href="https://www.wikipedia.org/" target="_blank"><m3e-icon slot="icon" name="open_in_new"/>Visit Wikipedia</m3e-button></m3e-card></div>}
