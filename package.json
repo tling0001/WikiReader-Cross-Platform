@@ -1,0 +1,9 @@
+{
+  "name": "wikireader-desktop",
+  "private": true,
+  "version": "2.5.5",
+  "type": "module",
+  "scripts": {"dev": "vite --host 127.0.0.1", "build": "tsc && vite build", "preview": "vite preview", "tauri": "tauri"},
+  "dependencies": {"@m3e/icons": "file:./icons-1.0.20.tgz", "@m3e/web": "file:./web-2.10.2.tgz", "@tauri-apps/api": "^2.8.0", "react": "^19.1.0", "react-dom": "^19.1.0"},
+  "devDependencies": {"@tauri-apps/cli": "^2.8.0", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "@vitejs/plugin-react": "^4.7.0", "typescript": "~5.8.3", "vite": "^6.4.0"}
+}
