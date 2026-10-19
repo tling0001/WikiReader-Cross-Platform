@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import React, { useMemo, useState, type ReactNode } from 'react';
 
 type ArticleRendererProps = {
   html: string;
@@ -83,12 +83,12 @@ export default function ArticleRenderer({ html, lang, dataSaver, expandedSection
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const sections = useMemo(() => {
     const document = new DOMParser().parseFromString(html, 'text/html');
-    const body = document.querySelector('.mw-parser-output') || document.querySelector('body') || document.documentElement;
-    const nodes = Array.from(body.children).filter(element => !['SCRIPT','STYLE','NAV'].includes(element.tagName) && !element.classList.contains('mw-jump-link'));
+    const body: HTMLElement = document.querySelector<HTMLElement>('.mw-parser-output') || document.querySelector<HTMLElement>('body') || document.documentElement;
+    const nodes = Array.from(body.children).filter(element => !['SCRIPT','STYLE','NAV'].includes(element.tagName) && !element.classList.contains('mw-jump-link')) as HTMLElement[];
     const groups: { heading: HTMLElement | null; nodes: HTMLElement[] }[] = [];
     let current: { heading: HTMLElement | null; nodes: HTMLElement[] } = { heading: null, nodes: [] };
     for (const element of nodes) {
-      const heading = element.tagName === 'H2' ? element : element.querySelector(':scope > h2');
+      const heading: HTMLElement | null = element.tagName === 'H2' ? element : element.querySelector<HTMLElement>(':scope > h2');
       if (heading) {
         if (current.nodes.length || current.heading) groups.push(current);
         current = { heading, nodes: [] };
