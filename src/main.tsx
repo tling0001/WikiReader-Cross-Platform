@@ -4,7 +4,6 @@ import '@m3e/web/all';
 import '@m3e/web/content-pane';
 import '@m3e/icons/rounded/arrow_back';
 import '@m3e/icons/rounded/arrow_forward';
-import '@m3e/icons/rounded/auto_awesome';
 import '@m3e/icons/rounded/bookmark';
 import '@m3e/icons/rounded/brightness_6';
 import '@m3e/icons/rounded/check_circle';

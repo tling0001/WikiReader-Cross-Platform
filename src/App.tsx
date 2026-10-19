@@ -207,7 +207,7 @@ export default function App() {
 function HomeScreen({ feed, loading, onOpen, onRandom, enabled }: { feed: Page[]; loading: boolean; onOpen: (title: string) => void; onRandom: () => void; enabled: boolean }) {
   const lead = feed[0];
   return <m3e-list>
-    <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="auto_awesome" filled />Discover Wikipedia<span slot="supporting-text">Explore featured articles and the world’s knowledge.</span><m3e-button slot="trailing" variant="filled" onClick={onRandom}>Random article</m3e-button></m3e-list-item>
+    <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="star" filled />Discover Wikipedia<span slot="supporting-text">Explore featured articles and the world’s knowledge.</span><m3e-button slot="trailing" variant="filled" onClick={onRandom}>Random article</m3e-button></m3e-list-item>
     {!enabled && <m3e-list-item>Article feed is disabled in Settings.</m3e-list-item>}
     {loading && <m3e-list-item><m3e-progress-indicator indeterminate />Loading featured articles…</m3e-list-item>}
     {lead && <m3e-card variant="outlined" onClick={() => onOpen(lead.title)}>
