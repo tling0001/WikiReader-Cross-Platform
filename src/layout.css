@@ -1,0 +1,6 @@
+html, body, #root { height:100%; min-height:100%; margin:0; }
+#root > m3e-theme.app-shell { display:flex; flex-direction:column; height:100%; min-height:0; }
+m3e-app-bar { flex:0 0 auto; }
+m3e-split-pane.app-layout { flex:1 1 auto; min-height:0; height:0; }
+m3e-content-pane.app-content { min-width:0; min-height:0; }
+m3e-toolbar.reading-toolbar { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:1000; max-width:calc(100vw - 32px); }

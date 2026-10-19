@@ -10,9 +10,10 @@ type ArticleRendererProps = {
   imageBackground: boolean;
   renderMath: boolean;
   onLinkClick: (title: string) => void;
+  pageImageUri?: string;
 };
 
-type RenderOptions = Pick<ArticleRendererProps, 'lang' | 'dataSaver' | 'fontSize' | 'fontStyle' | 'imageBackground' | 'renderMath' | 'onLinkClick'> & { onImageClick: (src: string, caption: string) => void };
+type RenderOptions = Pick<ArticleRendererProps, 'lang' | 'dataSaver' | 'fontSize' | 'fontStyle' | 'imageBackground' | 'renderMath' | 'onLinkClick'> & { onImageClick: (src: string, caption: string) => void; pageImageUri?: string; firstImageSkipped?: boolean };
 
 const ignoredClasses = ['mw-editsection', 'noprint', 'metadata', 'mw-empty-elt'];
 
@@ -40,6 +41,7 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
   }
   if (tag === 'img') {
     if (options.dataSaver) return null;
+    if (options.pageImageUri && !options.firstImageSkipped) { options.firstImageSkipped = true; return null; }
     const src = element.getAttribute('src') || element.getAttribute('data-src') || '';
     if (!src) return null;
     const resolved = new URL(src, 'https://' + options.lang + '.wikipedia.org').toString();
@@ -75,15 +77,20 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
   }
   if (tag === 'ol' && element.getAttribute('start')) props.start = Number(element.getAttribute('start'));
   if (tag === 'abbr' && element.title) props.title = element.title;
+  if (element.id) props.id = element.id;
+  if (element.className) props.className = element.className;
+  if (element.getAttribute('dir')) props.dir = element.getAttribute('dir');
+  if (element.getAttribute('lang')) props.lang = element.getAttribute('lang');
   return React.createElement(safeTag, props, ...children);
 }
 
-export default function ArticleRenderer({ html, lang, dataSaver, expandedSections, fontSize, fontStyle, imageBackground, renderMath, onLinkClick }: ArticleRendererProps) {
+export default function ArticleRenderer({ html, lang, dataSaver, expandedSections, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, onLinkClick }: ArticleRendererProps) {
   const [selectedImage, setSelectedImage] = useState<{ src: string; caption: string } | null>(null);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const sections = useMemo(() => {
     const document = new DOMParser().parseFromString(html, 'text/html');
     const body: HTMLElement = document.querySelector<HTMLElement>('.mw-parser-output') || document.querySelector<HTMLElement>('body') || document.documentElement;
+    document.querySelectorAll('h2,h3').forEach((heading,index)=>{if(!heading.id)heading.id='heading-'+index;});
     const nodes = Array.from(body.children).filter(element => !['SCRIPT','STYLE','NAV'].includes(element.tagName) && !element.classList.contains('mw-jump-link')) as HTMLElement[];
     const groups: { heading: HTMLElement | null; nodes: HTMLElement[] }[] = [];
     let current: { heading: HTMLElement | null; nodes: HTMLElement[] } = { heading: null, nodes: [] };
@@ -97,15 +104,16 @@ export default function ArticleRenderer({ html, lang, dataSaver, expandedSection
     if (current.nodes.length || current.heading) groups.push(current);
     return groups;
   }, [html]);
-  const options: RenderOptions = { lang, dataSaver, fontSize, fontStyle, imageBackground, renderMath, onLinkClick, onImageClick: (src, caption) => setSelectedImage({ src, caption }) };
+  const options: RenderOptions = { lang, dataSaver, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, firstImageSkipped: false, onLinkClick, onImageClick: (src, caption) => setSelectedImage({ src, caption }) };
   return <>
     {sections.map((section, index) => {
       const children = section.nodes.map((node, childIndex) => renderNode(node, index + '-' + childIndex, options));
-      if (!section.heading) return <m3e-card key={'intro-' + index} variant="outlined"><div>{children}</div></m3e-card>;
-      const title = section.heading.textContent?.replace('[edit]', '').trim() || 'Section';
+      if (!section.heading) return <section key={'intro-' + index}>{children}</section>;
+      const title = section.heading.querySelector('h2')?.textContent?.replace('[edit]', '').trim() || section.heading.textContent?.replace('[edit]', '').trim() || 'Section';
+      const headingId = section.heading.querySelector('h2')?.id || section.heading.id || undefined;
       return <m3e-expansion-panel key={'section-' + index} open={expanded[index] ?? expandedSections} toggle-position="after">
-        <span slot="header">{title}</span>
-        <div>{children}</div>
+        <span slot="header" id={headingId}>{title}</span>
+        <section>{children}</section>
         <m3e-list-item slot="actions"><m3e-button variant="text" onClick={() => setExpanded(previous => ({ ...previous, [index]: !(previous[index] ?? expandedSections) }))}>{(expanded[index] ?? expandedSections) ? 'Collapse section' : 'Expand section'}</m3e-button></m3e-list-item>
       </m3e-expansion-panel>;
     })}

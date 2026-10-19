@@ -32,6 +32,12 @@ import '@m3e/icons/rounded/translate';
 import '@m3e/icons/rounded/tune';
 import '@m3e/icons/rounded/share';
 import '@m3e/icons/rounded/arrow_upward';
+import '@m3e/icons/rounded/menu';
+import '@m3e/icons/rounded/refresh';
+import '@m3e/icons/rounded/radio_button_checked';
+import '@m3e/icons/rounded/radio_button_unchecked';
+import '@m3e/icons/rounded/delete';
+import './layout.css';
 import App from './App';
 
 document.addEventListener('contextmenu', event => event.preventDefault());
