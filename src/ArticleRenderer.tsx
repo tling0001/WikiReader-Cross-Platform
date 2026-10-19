@@ -64,7 +64,7 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
       return <span key={key}>{alt.replace(/\\(text|mathrm|mathbf)\{([^}]+)\}/g, '$2')}</span>;
     }
   }
-  const safeTags = new Set(['article','section','div','span','p','br','hr','strong','b','em','i','u','s','sub','sup','blockquote','pre','code','ul','ol','li','dl','dt','dd','h1','h2','h3','h4','h5','h6','abbr','cite','q','small','ruby','rt','rp','math','mrow','mi','mn','mo','msup','msub','mfrac','semantics','annotation','picture','source','figcaption','caption','thead','tbody','tfoot','tr','td','th','colgroup','col','time','details','summary');
+  const safeTags = new Set(['article','section','div','span','p','br','hr','strong','b','em','i','u','s','sub','sup','blockquote','pre','code','ul','ol','li','dl','dt','dd','h1','h2','h3','h4','h5','h6','abbr','cite','q','small','ruby','rt','rp','math','mrow','mi','mn','mo','msup','msub','mfrac','semantics','annotation','picture','source','figcaption','caption','thead','tbody','tfoot','tr','td','th','colgroup','col','time','details','summary']);
   const safeTag = safeTags.has(tag) ? tag : 'span';
   const props: Record<string, any> = { key };
   if (tag === 'td' || tag === 'th') {
