@@ -97,7 +97,18 @@ export default function App() {
         // Use the last successfully rendered page when the network is unavailable.
         setArticleHtml(getCachedArticle(requestedLang, data.title || title));
       }
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not load this article.'); }
+    } catch (e) {
+      const cachedHtml = getCachedArticle(requestedLang, title);
+      if (cachedHtml) {
+        setArticle({ title, lang: requestedLang });
+        setArticleHtml(cachedHtml);
+        if (push) setStack(prev => [...prev, title]);
+        const entry: Entry = { title, lang: requestedLang, visited: Date.now() };
+        setHistory(prev => [entry, ...prev.filter(item => !(item.title === title && item.lang === requestedLang))].slice(0, 500));
+      } else {
+        setError(e instanceof Error ? e.message : 'Could not load this article.');
+      }
+    }
     finally { setLoading(false); }
   }, [lang]);
 
