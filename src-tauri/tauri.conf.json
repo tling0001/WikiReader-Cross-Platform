@@ -5,5 +5,5 @@
   "identifier": "org.nsh07.wikireader.desktop",
   "build": {"beforeDevCommand": "npm run dev", "devUrl": "http://localhost:1420", "beforeBuildCommand": "npm run build", "frontendDist": "../dist"},
   "app": {"windows": [{"title": "WikiReader", "width": 1280, "height": 860, "minWidth": 360, "minHeight": 520}], "security": {"csp": "default-src 'self' asset: http://asset.localhost; img-src 'self' asset: http://asset.localhost https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src ipc: http://ipc.localhost https://*.wikipedia.org https://*.wikimedia.org https://en.wikipedia.org https://upload.wikimedia.org"}},
-  "bundle": {"active": true, "targets": "all", "category": "Education", "shortDescription": "A focused Wikipedia reader", "longDescription": "Read Wikipedia with WikiReader's focused reading experience."}
+  "bundle": {"active": true, "targets": "all", "icon": ["icons/icon.png", "icons/icon.ico"], "category": "Education", "shortDescription": "A focused Wikipedia reader", "longDescription": "Read Wikipedia with WikiReader's focused reading experience."}
 }
