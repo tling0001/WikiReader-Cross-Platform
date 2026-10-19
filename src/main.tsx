@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import '@m3e/web/all';
 import '@m3e/web/content-pane';
+import '@m3e/web/toolbar';
 import '@m3e/icons/rounded/arrow_back';
 import '@m3e/icons/rounded/arrow_forward';
 import '@m3e/icons/rounded/bookmark';
@@ -29,6 +30,8 @@ import '@m3e/icons/rounded/star';
 import '@m3e/icons/rounded/text_fields';
 import '@m3e/icons/rounded/translate';
 import '@m3e/icons/rounded/tune';
+import '@m3e/icons/rounded/share';
+import '@m3e/icons/rounded/arrow_upward';
 import App from './App';
 
 document.addEventListener('contextmenu', event => event.preventDefault());

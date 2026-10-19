@@ -5,7 +5,7 @@ declare module 'react' {
       'm3e-theme': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { color?: string; scheme?: string; variant?: string; motion?: string };
       'm3e-icon': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { name?: string; filled?: boolean; variant?: string };
       'm3e-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { variant?: string; href?: string; target?: string; disabled?: boolean; type?: string };
-      'm3e-icon-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { toggle?: boolean; selected?: boolean; title?: string; disabled?: boolean };
+      'm3e-icon-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { toggle?: boolean; selected?: boolean; title?: string; disabled?: boolean; variant?: string };
       'm3e-card': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { variant?: string; orientation?: string };
       'm3e-expansion-panel': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { open?: boolean; disabled?: boolean; 'toggle-position'?: string };
       'm3e-dialog': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { open?: boolean; dismissible?: boolean; 'close-label'?: string };
@@ -25,6 +25,7 @@ declare module 'react' {
       'm3e-nav-item': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { selected?: boolean; disabled?: boolean; href?: string; orientation?: string };
       'm3e-split-pane': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { orientation?: string; value?: number; min?: number; max?: number; disabled?: boolean };
       'm3e-content-pane': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+      'm3e-toolbar': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { variant?: string; shape?: string; elevated?: boolean; vertical?: boolean };
       'm3e-slide-group': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { threshold?: number; vertical?: boolean; disabled?: boolean; 'next-page-label'?: string; 'previous-page-label'?: string };
       'm3e-nav-menu-item': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { selected?: boolean; disabled?: boolean };
       'm3e-list': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;

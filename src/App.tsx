@@ -142,6 +142,17 @@ export default function App() {
   };
   const doSearch = () => { const value = query.trim(); if (value) void openArticle(value); };
   const back = () => { if (stack.length > 1) { const previous = stack[stack.length - 2]; setStack(items => items.slice(0, -1)); void openArticle(previous, false); } else { setArticle(null); setArticleHtml(''); setStack([]); } };
+  const shareArticle = async () => {
+    if (!article) return;
+    const url = 'https://' + (article.lang || lang) + '.wikipedia.org/wiki/' + titleToPath(article.title);
+    try {
+      if (navigator.share) await navigator.share({ title: article.title, text: article.description || article.extract || article.title, url });
+      else if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(url);
+      else window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (reason) {
+      if (reason instanceof Error && reason.name !== 'AbortError') setError('Unable to share this article.');
+    }
+  };
   const randomArticle = async () => {
     try { const data = await api<{ query?: { pages?: { title: string }[] } }>('https://' + lang + '.wikipedia.org/w/api.php?action=query&generator=random&grnnamespace=0&grnlimit=1&format=json&formatversion=2&origin=*'); const title = data.query?.pages?.[0]?.title; if (title) void openArticle(title); }
     catch { setError('Unable to get a random article right now.'); }
@@ -201,6 +212,14 @@ export default function App() {
       <m3e-content-pane slot={portrait ? 'start' : 'end'}>{screenContent}</m3e-content-pane>
       {portrait && <m3e-nav-bar slot="end" mode="compact">{navigationItems}</m3e-nav-bar>}
     </m3e-split-pane>
+    {section === 'home' && <m3e-toolbar variant="vibrant" shape="rounded" elevated>
+      <m3e-icon-button title="Search Wikipedia" aria-label="Search Wikipedia" variant="filled" onClick={() => document.querySelector<HTMLInputElement>('input[aria-label="Search Wikipedia"]')?.focus()}><m3e-icon variant="rounded" name="search" /></m3e-icon-button>
+      <m3e-icon-button title="Article language" aria-label="Article language" disabled={!article || articleLanguages.length === 0} onClick={() => window.dispatchEvent(new CustomEvent('wikireader:show-languages'))}><m3e-icon variant="rounded" name="translate" /></m3e-icon-button>
+      <m3e-icon-button title="Share article" aria-label="Share article" disabled={!article} onClick={() => void shareArticle()}><m3e-icon variant="rounded" name="share" /></m3e-icon-button>
+      <m3e-icon-button title={isSaved ? 'Remove saved article' : 'Save article'} aria-label={isSaved ? 'Remove saved article' : 'Save article'} selected={isSaved} disabled={!article} onClick={toggleSaved}><m3e-icon variant="rounded" name="bookmark" filled={isSaved} /></m3e-icon-button>
+      <m3e-icon-button title="Scroll to top" aria-label="Scroll to top" onClick={() => document.querySelector<HTMLElement>('m3e-content-pane')?.scrollTo({ top: 0, behavior: 'smooth' })}><m3e-icon variant="rounded" name="arrow_upward" /></m3e-icon-button>
+      <m3e-icon-button title="Random article" aria-label="Random article" onClick={() => void randomArticle()}><m3e-icon variant="rounded" name="shuffle" /></m3e-icon-button>
+    </m3e-toolbar>}
   </m3e-theme>;
 }
 
@@ -225,6 +244,11 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled }: { feed: Page[]
 function ArticleScreen({ article, html, loading, saved, onBack, onSave, showContents, setShowContents, fontSize, dataSaver, expandedSections, fontStyle, imageBackground, renderMath, languages, onChooseLanguage }: { article: Page; html: string; loading: boolean; saved: boolean; onBack: () => void; onSave: () => void; showContents: boolean; setShowContents: (value: boolean) => void; fontSize: number; dataSaver: boolean; expandedSections: boolean; fontStyle: string; imageBackground: boolean; renderMath: boolean; languages: ArticleLanguage[]; onChooseLanguage: (lang: string, title: string) => void }) {
   const [showLanguages, setShowLanguages] = useState(false);
   const [languageQuery, setLanguageQuery] = useState('');
+  useEffect(() => {
+    const show = () => setShowLanguages(true);
+    window.addEventListener('wikireader:show-languages', show);
+    return () => window.removeEventListener('wikireader:show-languages', show);
+  }, []);
   const headings = useMemo(() => {
     if (!html) return [];
     const doc = new DOMParser().parseFromString(html, 'text/html');
