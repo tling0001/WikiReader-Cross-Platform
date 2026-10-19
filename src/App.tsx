@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type Page = { title: string; description?: string; extract?: string; thumbnail?: { source: string; width?: number; height?: number }; pageid?: number; lang?: string };
 type Entry = { title: string; lang: string; visited: number; description?: string; thumbnail?: string };
+type ArticleLanguage = { lang: string; title: string; name?: string };
 type Section = 'home' | 'history' | 'saved' | 'settings' | 'about';
-type Preferences = { theme: string; lang: string; fontStyle: string; colorScheme: string; fontSize: number; blackTheme: boolean; dataSaver: boolean; feedEnabled: boolean; expandedSections: boolean; imageBackground: boolean; immersiveMode: boolean; renderMath: boolean; browsingHistory: boolean; searchHistory: boolean };
+type Preferences = { theme: 'auto' | 'light' | 'dark'; lang: string; fontStyle: string; colorScheme: string; fontSize: number; blackTheme: boolean; dataSaver: boolean; feedEnabled: boolean; expandedSections: boolean; imageBackground: boolean; immersiveMode: boolean; renderMath: boolean; browsingHistory: boolean; searchHistory: boolean };
 const defaults: Preferences = { theme: 'auto', lang: 'en', fontStyle: 'sans', colorScheme: '#6750a4', fontSize: 16, blackTheme: false, dataSaver: false, feedEnabled: true, expandedSections: false, imageBackground: false, immersiveMode: true, renderMath: true, browsingHistory: true, searchHistory: true };
 const readStore = <T,>(key: string, fallback: T): T => { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T : fallback; } catch { return fallback; } };
 const writeStore = (key: string, value: unknown) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Storage may be unavailable. */ } };
@@ -27,6 +28,7 @@ export default function App() {
   const [feed, setFeed] = useState<Page[]>([]);
   const [article, setArticle] = useState<Page | null>(null);
   const [articleHtml, setArticleHtml] = useState('');
+  const [articleLanguages, setArticleLanguages] = useState<ArticleLanguage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [stack, setStack] = useState<string[]>([]);
@@ -66,13 +68,17 @@ export default function App() {
   }, [query, lang]);
 
   const openArticle = useCallback(async (title: string, push = true, requestedLang = lang) => {
-    setError(''); setLoading(true); setSection('home'); setQuery(''); setSuggestions([]); setShowContents(false);
+    setError(''); setLoading(true); setSection('home'); setQuery(''); setSuggestions([]); setShowContents(false); setArticleLanguages([]);
     if (prefs.searchHistory && title.trim()) setSearchHistory(previous => [title.trim(), ...previous.filter(item => item.toLowerCase() !== title.trim().toLowerCase())].slice(0, 30));
     try {
       const data = await api<Page>('https://' + requestedLang + '.wikipedia.org/api/rest_v1/page/summary/' + titleToPath(title));
       const current = { ...data, lang: requestedLang };
       setArticle(current);
       if (push) setStack(previous => [...previous, current.title || title]);
+      try {
+        const languageData = await api<{ query?: { pages?: { langlinks?: { lang: string; title: string; langname?: string }[] }[] } }>('https://' + requestedLang + '.wikipedia.org/w/api.php?action=query&prop=langlinks&titles=' + encodeURIComponent(current.title || title) + '&lllimit=500&llprop=langname&format=json&formatversion=2&origin=*');
+        setArticleLanguages((languageData.query?.pages?.[0]?.langlinks ?? []).map(item => ({ lang: item.lang, title: item.title, name: item.langname || item.lang })));
+      } catch { setArticleLanguages([]); }
       if (prefs.browsingHistory) {
         const entry: Entry = { title: current.title || title, lang: requestedLang, visited: Date.now(), description: current.description, thumbnail: current.thumbnail?.source };
         setHistory(previous => [entry, ...previous.filter(item => !(item.title === entry.title && item.lang === requestedLang))].slice(0, 500));
@@ -156,7 +162,7 @@ export default function App() {
       </m3e-list>}
     </m3e-list>
     {error && <m3e-card variant="outlined"><m3e-list-item><m3e-icon slot="leading" name="error" />{error}<m3e-button slot="trailing" variant="text" onClick={() => setError('')}>Dismiss</m3e-button></m3e-list-item></m3e-card>}
-    {section === 'home' && (article ? <ArticleScreen article={article} html={articleHtml} loading={loading} saved={isSaved} onBack={back} onSave={toggleSaved} showContents={showContents} setShowContents={setShowContents} fontSize={prefs.fontSize} dataSaver={prefs.dataSaver} /> : <HomeScreen feed={feed} loading={prefs.feedEnabled && feed.length === 0} onOpen={title => void openArticle(title)} onRandom={randomArticle} enabled={prefs.feedEnabled} />)}
+    {section === 'home' && (article ? <ArticleScreen article={article} html={articleHtml} loading={loading} saved={isSaved} onBack={back} onSave={toggleSaved} showContents={showContents} setShowContents={setShowContents} fontSize={prefs.fontSize} dataSaver={prefs.dataSaver} languages={articleLanguages} onChooseLanguage={(targetLang, targetTitle) => { update('lang', targetLang); void openArticle(targetTitle, true, targetLang); }} /> : <HomeScreen feed={feed} loading={prefs.feedEnabled && feed.length === 0} onOpen={title => void openArticle(title)} onRandom={randomArticle} enabled={prefs.feedEnabled} />)}
     {section === 'history' && <LibraryScreen title="Reading history" entries={filteredHistory} total={history.length} emptyTitle="No reading history" emptyText="Articles you read will appear here." filter={listFilter} setFilter={setListFilter} onOpen={entry => void openArticle(entry.title, true, entry.lang)} onClear={() => setHistory([])} onRemove={entry => setHistory(previous => previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)))} clearLabel="Clear history" />}
     {section === 'saved' && <LibraryScreen title="Saved articles" entries={filteredSaved} total={saved.length} emptyTitle="No saved articles" emptyText="Save articles while reading to keep them here." filter={listFilter} setFilter={setListFilter} onOpen={entry => void openArticle(entry.title, true, entry.lang)} onClear={() => setSaved([])} onRemove={entry => setSaved(previous => previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)))} clearLabel="Remove all" />}
     {section === 'settings' && <SettingsScreen prefs={prefs} update={update} languageFilter={languageFilter} setLanguageFilter={setLanguageFilter} onClearData={() => { setHistory([]); setSaved([]); setSearchHistory([]); writeStore(cacheKey, {}); }} />}
@@ -189,7 +195,9 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled }: { feed: Page[]
   </m3e-list>;
 }
 
-function ArticleScreen({ article, html, loading, saved, onBack, onSave, showContents, setShowContents, fontSize, dataSaver }: { article: Page; html: string; loading: boolean; saved: boolean; onBack: () => void; onSave: () => void; showContents: boolean; setShowContents: (value: boolean) => void; fontSize: number; dataSaver: boolean }) {
+function ArticleScreen({ article, html, loading, saved, onBack, onSave, showContents, setShowContents, fontSize, dataSaver, languages, onChooseLanguage }: { article: Page; html: string; loading: boolean; saved: boolean; onBack: () => void; onSave: () => void; showContents: boolean; setShowContents: (value: boolean) => void; fontSize: number; dataSaver: boolean; languages: ArticleLanguage[]; onChooseLanguage: (lang: string, title: string) => void }) {
+  const [showLanguages, setShowLanguages] = useState(false);
+  const [languageQuery, setLanguageQuery] = useState('');
   const headings = useMemo(() => {
     if (!html) return [];
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -200,8 +208,10 @@ function ArticleScreen({ article, html, loading, saved, onBack, onSave, showCont
       <m3e-button variant="text" onClick={onBack}><m3e-icon slot="leading" name="arrow_back" />Back</m3e-button>
       <m3e-icon-button slot="trailing" title="Article contents" onClick={() => setShowContents(!showContents)}><m3e-icon name="format_list_bulleted" /></m3e-icon-button>
       <m3e-icon-button slot="trailing" title={saved ? 'Remove saved article' : 'Save article'} onClick={onSave}><m3e-icon name="bookmark" filled={saved} /></m3e-icon-button>
+      <m3e-button slot="trailing" variant="text" onClick={() => setShowLanguages(value => !value)}><m3e-icon slot="leading" name="language" />Languages</m3e-button>
       <m3e-button slot="trailing" variant="text" href={'https://' + (article.lang || 'en') + '.wikipedia.org/wiki/' + titleToPath(article.title)} target="_blank">Wikipedia</m3e-button>
     </m3e-list-item>
+    {showLanguages && <m3e-card variant="outlined"><m3e-list-item><span>Available article languages</span><span slot="supporting-text">Choose a translation of this article.</span></m3e-list-item><m3e-list-item><m3e-search-bar clearable><m3e-icon slot="leading" name="search" /><input slot="input" aria-label="Search article languages" placeholder="Find language or title" value={languageQuery} onChange={event => setLanguageQuery(event.target.value)} /></m3e-search-bar></m3e-list-item>{languages.filter(item => (item.name + ' ' + item.lang + ' ' + item.title).toLowerCase().includes(languageQuery.toLowerCase())).map(item => <m3e-list-item-button key={item.lang} selected={item.lang === article.lang} onClick={() => { setShowLanguages(false); setLanguageQuery(''); onChooseLanguage(item.lang, item.title); }}><m3e-icon slot="leading" name={item.lang === article.lang ? 'check_circle' : 'language'} />{item.name || item.lang}<span slot="supporting-text">{item.title} · {item.lang}</span></m3e-list-item-button>)}{languages.length === 0 && <m3e-list-item>No translations were found for this article.</m3e-list-item>}</m3e-card>}
     {showContents && <m3e-card variant="outlined"><m3e-list-item>On this page</m3e-list-item>{headings.length ? headings.map(item => <m3e-list-item-button key={item.id} onClick={() => { document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); setShowContents(false); }}>{item.text}</m3e-list-item-button>) : <m3e-list-item>Contents will appear when the article loads.</m3e-list-item>}</m3e-card>}
     <m3e-list-item><span slot="overline">Wikipedia article</span><span>{article.title}</span>{article.description && <span slot="supporting-text">{article.description}</span>}</m3e-list-item>
     {article.thumbnail?.source && !dataSaver && <m3e-card variant="outlined"><img src={article.thumbnail.source} alt={article.title} /><m3e-list-item>{article.title}</m3e-list-item></m3e-card>}
