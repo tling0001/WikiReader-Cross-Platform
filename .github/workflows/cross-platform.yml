@@ -39,12 +39,16 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf libwebkit2gtk-4.1-dev
+          sudo apt-get install -y build-essential curl wget file rpm libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf libwebkit2gtk-4.1-dev
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Install frontend dependencies
         run: npm install
+      - name: Build Linux bundles without AppImage
+        if: runner.os == 'Linux'
+        run: npm run tauri -- build --bundles deb,rpm
       - name: Build desktop bundles
+        if: runner.os != 'Linux'
         run: npm run tauri -- build
       - name: Upload desktop artifacts
         uses: actions/upload-artifact@v4
