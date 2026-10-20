@@ -1,5 +1,15 @@
 import React, { useMemo, useState, type ReactNode } from 'react';
 
+declare module 'react' {
+  namespace JSX {
+    interface IntrinsicElements {
+      'm3e-expandable-list-item': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+        open?: boolean;
+      };
+    }
+  }
+}
+
 type ArticleRendererProps = {
   html: string;
   lang: string;
