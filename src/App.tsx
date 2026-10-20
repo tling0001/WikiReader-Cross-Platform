@@ -60,7 +60,7 @@ export default function App() {
   const update = <K extends keyof Preferences,>(key: K, value: Preferences[K]) => setPrefs(previous => ({ ...previous, [key]: value }));
 
   useEffect(() => {
-    const query = window.matchMedia('(min-width: 840px)');
+    const query = window.matchMedia('(min-width: 600px)');
     const updateWidth = () => setWide(query.matches);
     updateWidth();
     query.addEventListener('change', updateWidth);
@@ -235,8 +235,8 @@ export default function App() {
       </m3e-nav-rail>}
       <div className="app-main" slot="end">
         <m3e-app-bar centered>
-          {section === 'settings'
-            ? <m3e-icon-button slot="leading-icon" title="Back" onClick={returnFromSettings}><m3e-icon variant="rounded" name="arrow_back" /></m3e-icon-button>
+          {section !== 'home'
+            ? <m3e-icon-button slot="leading-icon" title="Back" aria-label="Back" onClick={() => section === 'settings' ? returnFromSettings() : goToSection('home')}><m3e-icon variant="rounded" name="arrow_back" /></m3e-icon-button>
             : wide
               ? <m3e-icon-button slot="leading-icon" title="Search Wikipedia" aria-label="Search Wikipedia" onClick={() => { const view = document.querySelector('m3e-search-view'); view?.setAttribute('open', ''); document.querySelector<HTMLInputElement>('input[aria-label="Search Wikipedia"]')?.focus(); }}><m3e-icon variant="rounded" name="search" /></m3e-icon-button>
               : <m3e-icon-button slot="leading-icon" title="Open navigation" onClick={() => setShowNavigation(true)}><m3e-icon variant="rounded" name="menu" /></m3e-icon-button>}
@@ -264,7 +264,7 @@ export default function App() {
       <m3e-icon-button title={isSaved ? 'Remove saved article' : 'Save article'} aria-label={isSaved ? 'Remove saved article' : 'Save article'} selected={isSaved} disabled={!article} onClick={toggleSaved}><m3e-icon variant="rounded" name="bookmark" filled={isSaved} /></m3e-icon-button>
       <m3e-icon-button title="Scroll to top" aria-label="Scroll to top" onClick={() => { const pane = document.querySelector<HTMLElement>('m3e-content-pane'); const scroller = pane?.shadowRoot?.querySelector<HTMLElement>('.scroll-container') || pane; scroller?.scrollTo({ top: 0, behavior: 'smooth' }); }}><m3e-icon variant="rounded" name="arrow_upward" /></m3e-icon-button>
       <m3e-icon-button title="Random article" aria-label="Random article" onClick={() => void randomArticle()}><m3e-icon variant="rounded" name="shuffle" /></m3e-icon-button>
-    </m3e-toolbar><m3e-fab className="reading-search-fab" variant="primary" size="medium" aria-label="Search Wikipedia" title="Search Wikipedia" onClick={() => { const view = document.querySelector('m3e-search-view'); view?.setAttribute('open', ''); document.querySelector<HTMLInputElement>('input[aria-label="Search Wikipedia"]')?.focus(); }}><m3e-icon variant="rounded" name="search" /></m3e-fab></div>}
+    </m3e-toolbar><m3e-fab className="reading-search-fab" variant="primary-container" size="medium" aria-label="Search Wikipedia" title="Search Wikipedia" onClick={() => { const view = document.querySelector('m3e-search-view'); view?.setAttribute('open', ''); document.querySelector<HTMLInputElement>('input[aria-label="Search Wikipedia"]')?.focus(); }}><m3e-icon variant="rounded" name="search" /></m3e-fab></div>}
   </m3e-theme>;
 }
  
@@ -385,12 +385,11 @@ function LibraryScreen({ title, entries, total, emptyTitle, emptyText, filter, s
     <m3e-list-item><span slot="overline">Your library</span><span>{title}</span><span slot="supporting-text">{total} {total === 1 ? 'article' : 'articles'}</span>{total > 0 && <m3e-button slot="trailing" variant="text" onClick={onClear}>{clearLabel}</m3e-button>}</m3e-list-item>
     {total > 0 && <m3e-list-item><m3e-search-bar clearable><m3e-icon variant="rounded" slot="leading" name="search" /><input slot="input" aria-label="Filter articles" placeholder="Filter articles" value={filter} onChange={event => setFilter(event.target.value)} /></m3e-search-bar></m3e-list-item>}
     {entries.length === 0 && <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="library_books" /><span>{total ? 'No matching articles' : emptyTitle}</span><span slot="supporting-text">{total ? 'Try a different search term.' : emptyText}</span></m3e-list-item>}
-    {entries.map(entry => <m3e-list-item key={entry.lang + ':' + entry.title}>
+    {entries.map(entry => <m3e-list-item-button key={entry.lang + ':' + entry.title} onClick={() => onOpen(entry)}>
       {entry.thumbnail && <img slot="leading" src={entry.thumbnail} alt="" />}
       <span>{entry.title}</span><span slot="supporting-text">{entry.description || entry.lang.toUpperCase() + ' Wikipedia'} · {new Date(entry.visited).toLocaleDateString()}</span>
-      <m3e-button slot="trailing" variant="text" onClick={() => onOpen(entry)}>Open</m3e-button>
-      <m3e-icon-button slot="trailing" title="Remove article" onClick={() => onRemove(entry)}><m3e-icon variant="rounded" name="close" /></m3e-icon-button>
-    </m3e-list-item>)}
+      <m3e-icon-button slot="trailing" title="Remove article" aria-label={'Remove ' + entry.title + ' from ' + title.toLowerCase()} onClick={event => { event.stopPropagation(); onRemove(entry); }}><m3e-icon variant="rounded" name="close" /></m3e-icon-button>
+    </m3e-list-item-button>)}
   </m3e-list>;
 }
 
