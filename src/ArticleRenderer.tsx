@@ -105,7 +105,7 @@ export default function ArticleRenderer({ html, lang, dataSaver, expandedSection
     return groups;
   }, [html]);
   const options: RenderOptions = { lang, dataSaver, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, firstImageSkipped: false, onLinkClick, onImageClick: (src, caption) => setSelectedImage({ src, caption }) };
-  return <>
+  return <div style={{ fontFamily: fontStyle === 'serif' ? 'serif' : 'sans-serif', fontSize: fontSize + 'px', lineHeight: 1.5 }}>
     {sections.map((section, index) => {
       const children = section.nodes.map((node, childIndex) => renderNode(node, index + '-' + childIndex, options));
       if (!section.heading) return <section key={'intro-' + index}>{children}</section>;
@@ -122,5 +122,5 @@ export default function ArticleRenderer({ html, lang, dataSaver, expandedSection
       {selectedImage && <m3e-card variant="outlined"><img src={selectedImage.src} alt={selectedImage.caption} /><m3e-list-item>{selectedImage.caption}</m3e-list-item></m3e-card>}
       <m3e-list-item slot="actions"><m3e-button variant="filled" onClick={() => setSelectedImage(null)}>Close</m3e-button></m3e-list-item>
     </m3e-dialog>
-  </>;
+  </div>;
 }

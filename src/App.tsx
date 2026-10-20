@@ -1,3 +1,4 @@
+import React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { HTMLAttributes } from 'react';
 
@@ -19,7 +20,7 @@ type Entry = { title: string; lang: string; visited: number; description?: strin
 type ArticleLanguage = { lang: string; title: string; name?: string };
 type Section = 'home' | 'history' | 'saved' | 'settings' | 'about';
 type Preferences = { theme: 'auto' | 'light' | 'dark'; lang: string; fontStyle: string; colorScheme: string; fontSize: number; blackTheme: boolean; dataSaver: boolean; feedEnabled: boolean; expandedSections: boolean; imageBackground: boolean; immersiveMode: boolean; renderMath: boolean; browsingHistory: boolean; searchHistory: boolean };
-const defaults: Preferences = { theme: 'auto', lang: 'en', fontStyle: 'sans', colorScheme: '#6750a4', fontSize: 16, blackTheme: false, dataSaver: false, feedEnabled: true, expandedSections: false, imageBackground: false, immersiveMode: true, renderMath: true, browsingHistory: true, searchHistory: true };
+const defaults: Preferences = { theme: 'auto', lang: 'en', fontStyle: 'sans', colorScheme: '#ffffff', fontSize: 16, blackTheme: false, dataSaver: false, feedEnabled: true, expandedSections: false, imageBackground: false, immersiveMode: true, renderMath: true, browsingHistory: true, searchHistory: true };
 const readStore = <T,>(key: string, fallback: T): T => { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T : fallback; } catch { return fallback; } };
 const writeStore = (key: string, value: unknown) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Storage may be unavailable. */ } };
 type CachedArticle = { html: string; savedAt: number };
@@ -50,8 +51,9 @@ export default function App() {
   const [showContents, setShowContents] = useState(false);
   const [languageFilter, setLanguageFilter] = useState('');
   const [listFilter, setListFilter] = useState('');
-  const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 840px)').matches);
+  const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 600px)').matches);
   const [showNavigation, setShowNavigation] = useState(false);
+  const [railExpanded, setRailExpanded] = useState(false);
   const [showGlobalLanguagePicker, setShowGlobalLanguagePicker] = useState(false);
   const [globalLanguageFilter, setGlobalLanguageFilter] = useState('');
   const lang = prefs.lang;
@@ -116,7 +118,7 @@ export default function App() {
   }, [query, lang]);
 
   const openArticle = useCallback(async (title: string, push = true, requestedLang = lang) => {
-    setError(''); setLoading(true); setSection('home'); setQuery(''); setSuggestions([]); setShowContents(false); setArticleLanguages([]);
+    setError(''); setLoading(true); setSection('home'); setQuery(''); setSuggestions([]); setShowContents(false); setArticleLanguages([]); document.querySelector('m3e-search-view')?.removeAttribute('open');
     if (prefs.searchHistory && title.trim()) setSearchHistory(previous => [title.trim(), ...previous.filter(item => item.toLowerCase() !== title.trim().toLowerCase())].slice(0, 30));
     try {
       const data = await api<Page>('https://' + requestedLang + '.wikipedia.org/api/rest_v1/page/summary/' + titleToPath(title));
@@ -221,36 +223,48 @@ export default function App() {
     {section === 'home' && !article && !searchActive && prefs.searchHistory && searchHistory.length > 0 && <m3e-list><m3e-list-item><span slot="overline">Search history</span><span>Recent searches</span><m3e-button slot="trailing" variant="text" onClick={() => setSearchHistory([])}>Clear</m3e-button></m3e-list-item>{searchHistory.slice(0,8).map(item => <m3e-list-item-button key={item} onClick={() => setQuery(item)}><m3e-icon slot="leading" variant="rounded" name="history" />{item}</m3e-list-item-button>)}</m3e-list>}
   </>;
   const titleBySection: Record<Section, string> = { home: article?.title ?? 'WikiReader', history: 'History', saved: 'Saved articles', settings: 'Settings', about: 'About WikiReader' };
-  return <m3e-theme className="app-shell" color={prefs.colorScheme} scheme={prefs.blackTheme && prefs.theme === 'dark' ? 'dark' : prefs.theme} variant="tonal-spot" motion="expressive">
-    <m3e-app-bar centered>
-      {section === 'settings' ? <m3e-icon-button slot="leading-icon" title="Back" onClick={returnFromSettings}><m3e-icon variant="rounded" name="arrow_back" /></m3e-icon-button> : <m3e-icon-button slot="leading-icon" title="Open navigation" onClick={() => setShowNavigation(true)}><m3e-icon variant="rounded" name="menu" /></m3e-icon-button>}
-      {section === 'home' ? <m3e-search-view mode="fullscreen" clear-label="Clear search" close-label="Close search">
-        <input slot="input" aria-label="Search Wikipedia" placeholder={'Search ' + selectedLangName + ' Wikipedia'} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') doSearch(); }} />
-        {searchActive && <m3e-list>
-          <m3e-list-item><span slot="overline">Wikipedia search</span><span>Results for “{query.trim()}”</span><m3e-button slot="trailing" variant="filled" onClick={doSearch}>Open article</m3e-button></m3e-list-item>
-          {searching && <m3e-list-item><m3e-circular-progress-indicator indeterminate />Searching Wikipedia…</m3e-list-item>}
-          {suggestions.map(item => <m3e-list-item-button key={item.pageid ?? item.title} onClick={() => void openArticle(item.title)}>{item.thumbnail?.source && <img slot="leading" src={item.thumbnail.source} alt="" />}<span>{item.title}</span><span slot="supporting-text">{item.description || 'Wikipedia article'}</span><m3e-icon variant="rounded" slot="trailing" name="chevron_right" /></m3e-list-item-button>)}
-          {!searching && suggestions.length === 0 && <m3e-list-item>No matches found. You can still open “{query.trim()}”.</m3e-list-item>}
-        </m3e-list>}
-      </m3e-search-view> : <span slot="title">{titleBySection[section]}</span>}
-      {section === 'settings' ? <m3e-icon-button slot="trailing" title="Reset settings" onClick={() => window.dispatchEvent(new Event('wikireader:reset-settings'))}><m3e-icon variant="rounded" name="refresh" /></m3e-icon-button> : section === 'home' ? <m3e-icon-button slot="trailing" title="Random article" onClick={() => void randomArticle()}><m3e-icon variant="rounded" name="shuffle" /></m3e-icon-button> : null}
-    </m3e-app-bar>
-    {loading && <m3e-linear-progress-indicator mode="indeterminate" />}
-    <m3e-split-pane className="app-layout" disabled orientation="horizontal" value={wide ? 13 : 0} min={wide ? 13 : 0} max={wide ? 13 : 0}>
-      {wide && <m3e-nav-rail slot="start" mode="auto">{navigationItems}</m3e-nav-rail>}
-      <m3e-content-pane className="app-content" slot="end">{screenContent}</m3e-content-pane>
+  return <m3e-theme className="app-shell" color={prefs.colorScheme.toLowerCase() === '#ffffff' ? '#6650a4' : prefs.colorScheme} scheme={prefs.blackTheme && prefs.theme === 'dark' ? 'dark' : prefs.theme} variant="tonal-spot" motion="expressive">
+    <m3e-drawer-container start={showNavigation && !wide} start-mode="over" onChange={event => setShowNavigation(Boolean((event.currentTarget as HTMLElement & { start?: boolean }).start))} style={{ backgroundColor: 'var(--md-sys-color-surface)' }}>
+      <nav slot="start" aria-label="Main navigation" style={{ backgroundColor: 'var(--md-sys-color-surface)', color: 'var(--md-sys-color-on-surface)' }}>
+        <m3e-nav-rail mode="expanded">{navigationItems}</m3e-nav-rail>
+      </nav>
+    <m3e-split-pane className="app-layout" disabled orientation="horizontal" value={wide ? 13 : 0} min={wide ? 13 : 0} max={wide ? 13 : 0} style={{ backgroundColor: 'var(--md-sys-color-surface)', color: 'var(--md-sys-color-on-surface)' }}>
+      {wide && <m3e-nav-rail slot="start" mode={railExpanded ? "expanded" : "compact"} style={{ backgroundColor: 'var(--md-sys-color-surface)', color: 'var(--md-sys-color-on-surface)' }}>
+        <m3e-icon-button title="Toggle navigation rail" aria-label="Toggle navigation rail" onClick={() => setRailExpanded(value => !value)}><m3e-icon variant="rounded" name={railExpanded ? "menu_open" : "menu"} /></m3e-icon-button>
+        {navigationItems}
+      </m3e-nav-rail>}
+      <div className="app-main" slot="end">
+        <m3e-app-bar centered>
+          {section === 'settings'
+            ? <m3e-icon-button slot="leading-icon" title="Back" onClick={returnFromSettings}><m3e-icon variant="rounded" name="arrow_back" /></m3e-icon-button>
+            : wide
+              ? <m3e-icon-button slot="leading-icon" title="Search Wikipedia" aria-label="Search Wikipedia" onClick={() => { const view = document.querySelector('m3e-search-view'); view?.setAttribute('open', ''); document.querySelector<HTMLInputElement>('input[aria-label="Search Wikipedia"]')?.focus(); }}><m3e-icon variant="rounded" name="search" /></m3e-icon-button>
+              : <m3e-icon-button slot="leading-icon" title="Open navigation" onClick={() => setShowNavigation(true)}><m3e-icon variant="rounded" name="menu" /></m3e-icon-button>}
+          {section === 'home' ? <m3e-search-view mode="fullscreen" clear-label="Clear search" close-label="Close search">
+            <input slot="input" aria-label="Search Wikipedia" placeholder={'Search ' + selectedLangName + ' Wikipedia'} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') doSearch(); }} />
+            {searchActive && <m3e-list>
+              <m3e-list-item><span slot="overline">Wikipedia search</span><span>Results for “{query.trim()}”</span><m3e-button slot="trailing" variant="filled" onClick={doSearch}>Open article</m3e-button></m3e-list-item>
+              {searching && <m3e-list-item><m3e-circular-progress-indicator indeterminate />Searching Wikipedia…</m3e-list-item>}
+              {suggestions.map(item => <m3e-list-item-button key={item.pageid ?? item.title} onClick={() => void openArticle(item.title)}>{item.thumbnail?.source && <img slot="leading" src={item.thumbnail.source} alt="" />}<span>{item.title}</span><span slot="supporting-text">{item.description || 'Wikipedia article'}</span><m3e-icon variant="rounded" slot="trailing" name="chevron_right" /></m3e-list-item-button>)}
+              {!searching && suggestions.length === 0 && <m3e-list-item>No matches found. You can still open “{query.trim()}”.</m3e-list-item>}
+            </m3e-list>}
+          </m3e-search-view> : <span slot="title">{titleBySection[section]}</span>}
+          {section === 'settings' ? <m3e-icon-button slot="trailing" title="Reset settings" onClick={() => window.dispatchEvent(new Event('wikireader:reset-settings'))}><m3e-icon variant="rounded" name="refresh" /></m3e-icon-button> : section === 'home' ? <m3e-icon-button slot="trailing" title="Random article" onClick={() => void randomArticle()}><m3e-icon variant="rounded" name="shuffle" /></m3e-icon-button> : null}
+        </m3e-app-bar>
+        {loading && <m3e-linear-progress-indicator mode="indeterminate" />}
+        <m3e-content-pane className="app-content" style={{ backgroundColor: 'var(--md-sys-color-surface)', color: 'var(--md-sys-color-on-surface)' }}>{screenContent}</m3e-content-pane>
+      </div>
     </m3e-split-pane>
-    {showNavigation && <m3e-dialog open dismissible close-label="Close navigation"><span slot="header">WikiReader</span><m3e-nav-rail mode="expanded">{navigationItems}</m3e-nav-rail><m3e-list-item slot="actions"><m3e-button variant="text" onClick={() => setShowNavigation(false)}>Close</m3e-button></m3e-list-item></m3e-dialog>}
+</m3e-drawer-container>
     {showGlobalLanguagePicker && <LanguagePickerDialog open={showGlobalLanguagePicker} filter={globalLanguageFilter} setFilter={setGlobalLanguageFilter} currentLang={prefs.lang} title="Wikipedia language" onClose={() => setShowGlobalLanguagePicker(false)} onChoose={targetLang => { update('lang', targetLang); setShowGlobalLanguagePicker(false); setGlobalLanguageFilter(''); }} />}
-    {section === 'home' && <m3e-toolbar className="reading-toolbar" variant="vibrant" shape="rounded" elevated>
+    {section === 'home' && <div className="reading-actions"><m3e-toolbar className="reading-toolbar" variant="vibrant" shape="rounded" elevated>
       {article && <m3e-icon-button title="Back" aria-label="Back" onClick={back}><m3e-icon variant="rounded" name="arrow_back" /></m3e-icon-button>}
-      <m3e-icon-button title="Search Wikipedia" aria-label="Search Wikipedia" variant="filled" onClick={() => document.querySelector<HTMLInputElement>('input[aria-label="Search Wikipedia"]')?.focus()}><m3e-icon variant="rounded" name="search" /></m3e-icon-button>
       <m3e-icon-button title="Article language" aria-label="Article language" disabled={Boolean(article && articleLanguages.length === 0)} onClick={() => article ? window.dispatchEvent(new CustomEvent('wikireader:show-languages')) : setShowGlobalLanguagePicker(true)}><m3e-icon variant="rounded" name="translate" /></m3e-icon-button>
       <m3e-icon-button title="Share article" aria-label="Share article" disabled={!article} onClick={() => void shareArticle()}><m3e-icon variant="rounded" name="share" /></m3e-icon-button>
       <m3e-icon-button title={isSaved ? 'Remove saved article' : 'Save article'} aria-label={isSaved ? 'Remove saved article' : 'Save article'} selected={isSaved} disabled={!article} onClick={toggleSaved}><m3e-icon variant="rounded" name="bookmark" filled={isSaved} /></m3e-icon-button>
       <m3e-icon-button title="Scroll to top" aria-label="Scroll to top" onClick={() => { const pane = document.querySelector<HTMLElement>('m3e-content-pane'); const scroller = pane?.shadowRoot?.querySelector<HTMLElement>('.scroll-container') || pane; scroller?.scrollTo({ top: 0, behavior: 'smooth' }); }}><m3e-icon variant="rounded" name="arrow_upward" /></m3e-icon-button>
       <m3e-icon-button title="Random article" aria-label="Random article" onClick={() => void randomArticle()}><m3e-icon variant="rounded" name="shuffle" /></m3e-icon-button>
-    </m3e-toolbar>}
+    </m3e-toolbar><m3e-fab className="reading-search-fab" variant="primary" size="medium" aria-label="Search Wikipedia" title="Search Wikipedia" onClick={() => { const view = document.querySelector('m3e-search-view'); view?.setAttribute('open', ''); document.querySelector<HTMLInputElement>('input[aria-label="Search Wikipedia"]')?.focus(); }}><m3e-icon variant="rounded" name="search" /></m3e-fab></div>}
   </m3e-theme>;
 }
  
@@ -260,24 +274,26 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled }: { feed: { feat
   const pages = Math.max(1, Math.ceil(feed.trending.length / 5));
   const visible = feed.trending.slice(trendingPage * 5, trendingPage * 5 + 5);
   const today = new Date().toLocaleDateString(undefined, { dateStyle: 'long' });
-  return <m3e-list>
+  return <div>
     {!enabled && <m3e-card variant="outlined"><m3e-list-item>Article feed is disabled in Settings.</m3e-list-item></m3e-card>}
     {loading && enabled && <m3e-list-item><m3e-circular-progress-indicator indeterminate />Loading today's articles…</m3e-list-item>}
     {enabled && feed.featured && <>
       <m3e-heading level="2" variant="headline" size="medium">Featured article</m3e-heading>
-      <m3e-heading level="6" variant="label" size="large">{today}</m3e-heading>
+      <m3e-heading level="6" variant="label" size="medium">{today}</m3e-heading>
       <m3e-card variant="filled" actionable onClick={() => onOpen(feed.featured?.title || '')}>
         {feed.featured.thumbnail?.source && <img src={feed.featured.thumbnail.source} alt={feed.featured.title} width={feed.featured.thumbnail.width} height={feed.featured.thumbnail.height} loading="lazy" />}
-        <m3e-list-item><span>{feed.featured.title}</span><span slot="supporting-text">{feed.featured.description || ''}</span></m3e-list-item>
-        {feed.featured.extract && <m3e-list-item>{feed.featured.extract}</m3e-list-item>}
+        <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{feed.featured.title}</m3e-heading>
+        {feed.featured.description && <m3e-list-item><span slot="supporting-text">{feed.featured.description}</span></m3e-list-item>}
+        {feed.featured.extract && <m3e-list-item>{feed.featured.extract.length > 520 ? feed.featured.extract.slice(0, 517).trimEnd() + '…' : feed.featured.extract}</m3e-list-item>}
       </m3e-card>
     </>}
     {enabled && feed.trending.length > 0 && <>
       <m3e-heading level="3" variant="title" size="large">Trending articles</m3e-heading>
-      <m3e-heading level="6" variant="label" size="large">Top articles of the day</m3e-heading>
+      <m3e-heading level="6" variant="label" size="medium">Top articles of the day</m3e-heading>
       <m3e-list>
-        {visible.map(item => <m3e-list-item-button key={item.pageid ?? item.title} onClick={() => onOpen(item.title)}>
+        {visible.map((item, index) => <m3e-list-item-button key={item.pageid ?? item.title} onClick={() => onOpen(item.title)}>
           {item.thumbnail?.source && <img slot="leading" src={item.thumbnail.source} alt="" width="80" height="80" loading="lazy" />}
+          <span slot="overline">{trendingPage * 5 + index + 1}</span>
           <span>{item.title}</span>
           <span slot="supporting-text">{item.description || item.extract || ''}{item.views ? ' · ' + new Intl.NumberFormat(undefined,{notation:'compact'}).format(item.views) + ' views today' : ''}</span>
           <m3e-icon variant="rounded" slot="trailing" name="chevron_right" />
@@ -285,32 +301,60 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled }: { feed: { feat
       </m3e-list>
       {pages > 1 && <m3e-list><m3e-list-item><span slot="supporting-text">Page {trendingPage+1} of {pages}</span><m3e-button-group slot="trailing" variant="connected"><m3e-button variant="tonal" shape="square" disabled={trendingPage===0} onClick={()=>setTrendingPage(v=>Math.max(0,v-1))}>Previous</m3e-button><m3e-button variant="tonal" shape="square" disabled={trendingPage===pages-1} onClick={()=>setTrendingPage(v=>Math.min(pages-1,v+1))}>Next</m3e-button></m3e-button-group></m3e-list-item></m3e-list>}
     </>}
-    {enabled && (feed.image?.thumbnail?.source || feed.image?.image?.source) && <m3e-list>
+    {enabled && (feed.image?.thumbnail?.source || feed.image?.image?.source) && <>
       <m3e-heading level="3" variant="title" size="large">Picture of the day</m3e-heading>
       <m3e-card variant="filled">
         <img src={(feed.image.thumbnail || feed.image.image)?.source} alt={feed.image.description?.text || feed.image.title || 'Picture of the day'} width={(feed.image.thumbnail || feed.image.image)?.width} height={(feed.image.thumbnail || feed.image.image)?.height} loading="lazy" />
         {feed.image.description?.text && <m3e-list-item>{feed.image.description.text}</m3e-list-item>}
         {(feed.image.artist?.name || feed.image.artist?.text) && <m3e-list-item><span slot="supporting-text">{feed.image.artist.name || feed.image.artist.text}{feed.image.credit?.text ? ' ('+feed.image.credit.text.split(';')[0]+')' : ''}</span></m3e-list-item>}
       </m3e-card>
-    </m3e-list>}
-    {enabled && feed.news.length > 0 && <m3e-list>
+    </>}
+    {enabled && feed.news.length > 0 && <>
       <m3e-heading level="3" variant="title" size="large">In the news</m3e-heading>
       {feed.news.map((item,index)=><m3e-card key={index} variant="filled">
         {item.links?.find(link=>link.thumbnail?.source)?.thumbnail?.source && <img src={item.links.find(link=>link.thumbnail?.source)?.thumbnail?.source} alt="" loading="lazy" />}
-        <m3e-list-item><span>{item.story || item.links?.[0]?.title || 'News story'}</span></m3e-list-item>
+        <m3e-list-item><WikiFeedStory html={item.story || item.links?.[0]?.title || 'News story'} onOpen={onOpen} /></m3e-list-item>
         {item.links?.slice(0,3).map(link=><m3e-list-item-button key={link.title} onClick={()=>onOpen(link.title)}>{link.title}<m3e-icon slot="trailing" variant="rounded" name="chevron_right"/></m3e-list-item-button>)}
       </m3e-card>)}
-    </m3e-list>}
-    {enabled && feed.onthisday.length > 0 && <m3e-list>
+    </>}
+    {enabled && feed.onthisday.length > 0 && <>
       <m3e-heading level="3" variant="title" size="large">On this day</m3e-heading>
-      {feed.onthisday.map((item,index)=><m3e-list-item key={index}>
-        <span slot="overline">{item.year ?? ''}</span><span>{item.text || 'Historical event'}</span>
-        {item.pages?.slice(0,2).map(page=><m3e-button key={page.title} variant="text" onClick={()=>onOpen(page.title)}>{page.title}</m3e-button>)}
-      </m3e-list-item>)}
-    </m3e-list>}
+      <m3e-list>
+        {feed.onthisday.map((item,index)=><m3e-list-item key={index}>
+          <span slot="overline">{item.year ?? ''}</span><span>{item.text || 'Historical event'}</span>
+          {item.pages?.slice(0,2).map(page=><m3e-button key={page.title} variant="text" onClick={()=>onOpen(page.title)}>{page.title}</m3e-button>)}
+        </m3e-list-item>)}
+      </m3e-list>
+    </>}
     {!loading && enabled && !feed.featured && feed.trending.length===0 && !feed.image && feed.news.length===0 && feed.onthisday.length===0 && <m3e-card variant="outlined"><m3e-list-item><m3e-icon slot="leading" variant="rounded" name="error" /><span>Today's articles are unavailable</span><span slot="supporting-text">Search Wikipedia or open a random article.</span><m3e-button slot="trailing" variant="filled" onClick={onRandom}>Random</m3e-button></m3e-list-item></m3e-card>}
-  </m3e-list>;
+  </div>;
 }
+
+function WikiFeedStory({ html, onOpen }: { html: string; onOpen: (title: string) => void }) {
+  const nodes = useMemo(() => {
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    const convert = (node: Node, key: string): React.ReactNode => {
+      if (node.nodeType === Node.TEXT_NODE) return node.nodeValue;
+      if (!(node instanceof HTMLElement)) return null;
+      const tag = node.tagName.toLowerCase();
+      const children = Array.from(node.childNodes).map((child, index) => convert(child, key + '-' + index));
+      if (tag === 'a') {
+        const href = node.getAttribute('href') || '';
+        const rawTitle = href.startsWith('./') ? href.slice(2).split('#')[0] : node.getAttribute('title') || node.textContent || '';
+        let title = rawTitle;
+        try { title = decodeURIComponent(rawTitle).replaceAll('_', ' '); } catch { title = rawTitle.replaceAll('_', ' '); }
+        return <a key={key} href="#" onClick={event => { event.preventDefault(); if (title) onOpen(title); }}>{children}</a>;
+      }
+      if (tag === 'b' || tag === 'strong') return <strong key={key}>{children}</strong>;
+      if (tag === 'i' || tag === 'em') return <em key={key}>{children}</em>;
+      if (tag === 'br') return <span key={key}> </span>;
+      return <React.Fragment key={key}>{children}</React.Fragment>;
+    };
+    return Array.from(document.body.childNodes).map((node, index) => convert(node, String(index)));
+  }, [html, onOpen]);
+  return <>{nodes}</>;
+}
+
 function ArticleScreen({ article, html, loading, saved, onBack, onSave, showContents, setShowContents, fontSize, dataSaver, expandedSections, fontStyle, imageBackground, renderMath, languages, onChooseLanguage }: { article: Page; html: string; loading: boolean; saved: boolean; onBack: () => void; onSave: () => void; showContents: boolean; setShowContents: (value: boolean) => void; fontSize: number; dataSaver: boolean; expandedSections: boolean; fontStyle: string; imageBackground: boolean; renderMath: boolean; languages: ArticleLanguage[]; onChooseLanguage: (lang: string, title: string) => void }) {
   const [showLanguages, setShowLanguages] = useState(false);
   const [languageQuery, setLanguageQuery] = useState('');
@@ -325,7 +369,7 @@ function ArticleScreen({ article, html, loading, saved, onBack, onSave, showCont
     return Array.from(doc.querySelectorAll('h2,h3')).map((heading, index) => ({ id: heading.id || 'heading-' + index, text: heading.textContent?.replace('[edit]', '').trim() || '' })).filter(item => item.text);
   }, [html]);
   return <>
-    <m3e-list><m3e-list-item><span slot="overline">Article tools</span><span>{article.title}</span><m3e-icon-button slot="trailing" title="Article contents" onClick={()=>setShowContents(!showContents)}><m3e-icon variant="rounded" name="format_list_bulleted"/></m3e-icon-button></m3e-list-item></m3e-list>
+    <m3e-list><m3e-list-item><span slot="overline">Article tools</span><m3e-heading level="1" variant="display" size="small" style={{ fontFamily: 'serif' }}>{article.title}</m3e-heading><m3e-icon-button slot="trailing" title="Article contents" onClick={()=>setShowContents(!showContents)}><m3e-icon variant="rounded" name="format_list_bulleted"/></m3e-icon-button></m3e-list-item></m3e-list>
     {showLanguages && <m3e-card variant="outlined"><m3e-list-item>Available article languages</m3e-list-item><m3e-list-item><m3e-search-bar clearable><m3e-icon slot="leading" variant="rounded" name="search"/><input slot="input" aria-label="Search article languages" placeholder="Find language or title" value={languageQuery} onChange={event=>setLanguageQuery(event.target.value)}/></m3e-search-bar></m3e-list-item>{languages.filter(x=>(x.name+' '+x.lang+' '+x.title).toLowerCase().includes(languageQuery.toLowerCase())).map(x=><m3e-list-item-button key={x.lang} selected={x.lang===article.lang} onClick={()=>{setShowLanguages(false);setLanguageQuery('');onChooseLanguage(x.lang,x.title);}}><m3e-icon slot="leading" variant="rounded" name={x.lang===article.lang?'check_circle':'language'}/><span>{x.name||x.lang}</span><span slot="supporting-text">{x.title} · {x.lang}</span></m3e-list-item-button>)}</m3e-card>}
     {showContents && <m3e-card variant="outlined"><m3e-list-item>On this page</m3e-list-item>{headings.length?headings.map(x=><m3e-list-item-button key={x.id} onClick={()=>{document.getElementById(x.id)?.scrollIntoView({behavior:'smooth',block:'start'});setShowContents(false);}}>{x.text}</m3e-list-item-button>):<m3e-list-item>Contents will appear when the article loads.</m3e-list-item>}</m3e-card>}
     <m3e-card variant="outlined">{article.thumbnail?.source&&!dataSaver&&<img src={article.thumbnail.source} alt={article.title} width={article.thumbnail.width} height={article.thumbnail.height} loading="lazy"/>}<m3e-list-item><span slot="overline">Wikipedia article</span><span>{article.title}</span>{article.description&&<span slot="supporting-text">{article.description}</span>}</m3e-list-item>{article.extract&&<m3e-list-item>{article.extract}</m3e-list-item>}</m3e-card>
@@ -354,7 +398,7 @@ function SettingsScreen({ prefs, update, languageFilter, setLanguageFilter, onCl
   const [themeOpen,setThemeOpen]=useState(false),[colorsOpen,setColorsOpen]=useState(false),[languageOpen,setLanguageOpen]=useState(false),[clearOpen,setClearOpen]=useState(false),[resetOpen,setResetOpen]=useState(false);
   useEffect(()=>{const reset=()=>setResetOpen(true);window.addEventListener('wikireader:reset-settings',reset);return()=>window.removeEventListener('wikireader:reset-settings',reset);},[]);
   const themes=[['auto','System default'],['light','Light'],['dark','Dark']] as const;
-  const colors=['#feb4a7','#ffb3c0','#fcaaff','#b9c3ff','#62d3ff','#44d9f1','#52dbc9','#78dd77','#9fd75c','#c1d02d','#fabd00','#ffb86e','#ffffff','#6750a4'];
+  const colors=['#feb4a7','#ffb3c0','#fcaaff','#b9c3ff','#62d3ff','#44d9f1','#52dbc9','#78dd77','#9fd75c','#c1d02d','#fabd00','#ffb86e','#ffffff'];
   const switches:{key:'dataSaver'|'feedEnabled'|'expandedSections'|'imageBackground'|'immersiveMode'|'renderMath'|'browsingHistory'|'searchHistory';label:string;desc:string}[]=[
     {key:'dataSaver',label:'Data saver',desc:'Avoid loading images to reduce data usage.'},{key:'feedEnabled',label:'Home feed',desc:'Show featured and trending articles on Home.'},{key:'expandedSections',label:'Expanded sections',desc:'Expand article sections by default.'},{key:'imageBackground',label:'Image background',desc:'Display a surface behind article images.'},{key:'immersiveMode',label:'Immersive mode',desc:'Reduce app controls while reading, where supported.'},{key:'renderMath',label:'Render mathematical notation',desc:'Display equations in article content.'},{key:'browsingHistory',label:'Browsing history',desc:'Remember articles you open.'},{key:'searchHistory',label:'Search history',desc:'Keep recent search terms on this device.'}];
   return <>
