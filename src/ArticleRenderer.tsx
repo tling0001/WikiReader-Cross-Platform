@@ -11,6 +11,7 @@ type ArticleRendererProps = {
   renderMath: boolean;
   onLinkClick: (title: string) => void;
   pageImageUri?: string;
+  pageDescription?: string;
 };
 
 type RenderOptions = Pick<ArticleRendererProps, 'lang' | 'dataSaver' | 'fontSize' | 'fontStyle' | 'imageBackground' | 'renderMath' | 'onLinkClick'> & { onImageClick: (src: string, caption: string) => void; pageImageUri?: string; firstImageSkipped?: boolean };
@@ -84,7 +85,7 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
   return React.createElement(safeTag, props, ...children);
 }
 
-export default function ArticleRenderer({ html, lang, dataSaver, expandedSections, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, onLinkClick }: ArticleRendererProps) {
+export default function ArticleRenderer({ html, lang, dataSaver, expandedSections, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, pageDescription, onLinkClick }: ArticleRendererProps) {
   const [selectedImage, setSelectedImage] = useState<{ src: string; caption: string } | null>(null);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const sections = useMemo(() => {
@@ -92,6 +93,8 @@ export default function ArticleRenderer({ html, lang, dataSaver, expandedSection
     const body: HTMLElement = document.querySelector<HTMLElement>('.mw-parser-output') || document.querySelector<HTMLElement>('body') || document.documentElement;
     document.querySelectorAll('h2,h3').forEach((heading,index)=>{if(!heading.id)heading.id='heading-'+index;});
     const nodes = Array.from(body.children).filter(element => !['SCRIPT','STYLE','NAV'].includes(element.tagName) && !element.classList.contains('mw-jump-link')) as HTMLElement[];
+    const leadIndex = nodes.findIndex(element => element.matches('table.infobox, .infobox') || Boolean(element.querySelector(':scope > table.infobox, :scope > .infobox')));
+    const lead = leadIndex >= 0 ? nodes.splice(leadIndex, 1)[0] : null;
     const groups: { heading: HTMLElement | null; nodes: HTMLElement[] }[] = [];
     let current: { heading: HTMLElement | null; nodes: HTMLElement[] } = { heading: null, nodes: [] };
     for (const element of nodes) {
@@ -102,11 +105,14 @@ export default function ArticleRenderer({ html, lang, dataSaver, expandedSection
       } else current.nodes.push(element);
     }
     if (current.nodes.length || current.heading) groups.push(current);
-    return groups;
+    return { lead, groups };
   }, [html]);
-  const options: RenderOptions = { lang, dataSaver, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, firstImageSkipped: false, onLinkClick, onImageClick: (src, caption) => setSelectedImage({ src, caption }) };
-  return <div style={{ fontFamily: fontStyle === 'serif' ? 'serif' : 'sans-serif', fontSize: fontSize + 'px', lineHeight: 1.5 }}>
-    {sections.map((section, index) => {
+  const options: RenderOptions = { lang, dataSaver, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, firstImageSkipped: Boolean(sections.lead || !pageImageUri || dataSaver), onLinkClick, onImageClick: (src, caption) => setSelectedImage({ src, caption }) };
+  return <div style={{ fontFamily: fontStyle === 'serif' ? 'serif' : 'Roboto, Arial, sans-serif', fontSize: fontSize + 'px', lineHeight: 1.5, letterSpacing: '0.5px' }}>
+    {sections.lead && <section className="article-lead">{renderNode(sections.lead, 'article-lead', options)}</section>}
+    {pageImageUri && !dataSaver && !sections.lead && <m3e-card variant={imageBackground ? 'filled' : 'outlined'}><img src={pageImageUri} alt="Article lead image" loading="lazy" /></m3e-card>}
+    {pageDescription && <m3e-list-item><span slot="supporting-text">{pageDescription}</span></m3e-list-item>}
+    {sections.groups.map((section, index) => {
       const children = section.nodes.map((node, childIndex) => renderNode(node, index + '-' + childIndex, options));
       if (!section.heading) return <section key={'intro-' + index}>{children}</section>;
       const title = section.heading.querySelector('h2')?.textContent?.replace('[edit]', '').trim() || section.heading.textContent?.replace('[edit]', '').trim() || 'Section';

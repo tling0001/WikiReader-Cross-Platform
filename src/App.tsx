@@ -118,7 +118,7 @@ export default function App() {
   }, [query, lang]);
 
   const openArticle = useCallback(async (title: string, push = true, requestedLang = lang) => {
-    setError(''); setLoading(true); setSection('home'); setQuery(''); setSuggestions([]); setShowContents(false); setArticleLanguages([]); document.querySelector('m3e-search-view')?.removeAttribute('open');
+    setError(''); setLoading(true); setSection('home'); setQuery(''); setSuggestions([]); setShowContents(false); setArticleLanguages([]); document.activeElement instanceof HTMLElement && document.activeElement.blur();
     if (prefs.searchHistory && title.trim()) setSearchHistory(previous => [title.trim(), ...previous.filter(item => item.toLowerCase() !== title.trim().toLowerCase())].slice(0, 30));
     try {
       const data = await api<Page>('https://' + requestedLang + '.wikipedia.org/api/rest_v1/page/summary/' + titleToPath(title));
@@ -180,6 +180,7 @@ export default function App() {
     setSaved(previous => isSaved ? previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)) : [entry, ...previous]);
   };
   const doSearch = () => { const value = query.trim(); if (value) void openArticle(value); };
+  const focusSearch = () => { document.querySelector<HTMLInputElement>('input[aria-label="Search Wikipedia"]')?.focus(); };
   const back = () => { if (stack.length > 1) { const previous = stack[stack.length - 2]; setStack(items => items.slice(0, -1)); void openArticle(previous, false); } else { setArticle(null); setArticleHtml(''); setStack([]); } };
   const shareArticle = async () => {
     if (!article) return;
@@ -206,7 +207,7 @@ export default function App() {
   };
   const returnFromSettings = () => { setSection('home'); setShowNavigation(false); setListFilter(''); };
   const navigationItems = <>
-    <m3e-nav-item selected={section === 'home' && !article} onClick={() => { if (!article) goToSection('home'); }}><m3e-icon slot="icon" variant="rounded" name="home" />Home</m3e-nav-item>
+    <m3e-nav-item selected={section === 'home' && !article} onClick={() => goToSection('home')}><m3e-icon slot="icon" variant="rounded" name="home" />Home</m3e-nav-item>
     <m3e-nav-item selected={section === 'saved'} onClick={() => goToSection('saved')}><m3e-icon slot="icon" variant="rounded" name="bookmark" />Saved</m3e-nav-item>
     {prefs.browsingHistory && <m3e-nav-item selected={section === 'history'} onClick={() => goToSection('history')}><m3e-icon slot="icon" variant="rounded" name="history" />History</m3e-nav-item>}
     <m3e-nav-item selected={section === 'settings'} onClick={() => goToSection('settings')}><m3e-icon slot="icon" variant="rounded" name="settings" />Settings</m3e-nav-item>
@@ -215,7 +216,13 @@ export default function App() {
   const searchActive = query.trim().length > 1;
   const screenContent = <>
     {error && <m3e-card variant="outlined"><m3e-list-item><m3e-icon variant="rounded" slot="leading" name="error" />{error}<m3e-button slot="trailing" variant="text" onClick={() => setError('')}>Dismiss</m3e-button></m3e-list-item></m3e-card>}
-    {section === 'home' && (searchActive ? null : article ? <ArticleScreen article={article} html={articleHtml} loading={loading} saved={isSaved} onBack={back} onSave={toggleSaved} showContents={showContents} setShowContents={setShowContents} fontSize={prefs.fontSize} dataSaver={prefs.dataSaver} expandedSections={prefs.expandedSections} fontStyle={prefs.fontStyle} imageBackground={prefs.imageBackground} renderMath={prefs.renderMath} languages={articleLanguages} onChooseLanguage={(targetLang, targetTitle) => { update('lang', targetLang); void openArticle(targetTitle, true, targetLang); }} /> : <HomeScreen feed={feed} loading={feedLoading} onOpen={title => void openArticle(title)} onRandom={randomArticle} enabled={prefs.feedEnabled} />)}
+    {section === 'home' && searchActive && <m3e-list>
+      <m3e-list-item><span slot="overline">Wikipedia search</span><span>Results for “{query.trim()}”</span><m3e-button slot="trailing" variant="filled" onClick={doSearch}>Open article</m3e-button></m3e-list-item>
+      {searching && <m3e-list-item><m3e-circular-progress-indicator indeterminate />Searching Wikipedia…</m3e-list-item>}
+      {suggestions.map(item => <m3e-list-item-button key={item.pageid ?? item.title} onClick={() => void openArticle(item.title)}>{item.thumbnail?.source && <img slot="leading" src={item.thumbnail.source} alt="" />}<span>{item.title}</span><span slot="supporting-text">{item.description || 'Wikipedia article'}</span><m3e-icon variant="rounded" slot="trailing" name="chevron_right" /></m3e-list-item-button>)}
+      {!searching && suggestions.length === 0 && <m3e-list-item>No matches found. You can still open “{query.trim()}”.</m3e-list-item>}
+    </m3e-list>}
+    {section === 'home' && !searchActive && (article ? <ArticleScreen article={article} html={articleHtml} loading={loading} saved={isSaved} onBack={back} onSave={toggleSaved} showContents={showContents} setShowContents={setShowContents} fontSize={prefs.fontSize} dataSaver={prefs.dataSaver} expandedSections={prefs.expandedSections} fontStyle={prefs.fontStyle} imageBackground={prefs.imageBackground} renderMath={prefs.renderMath} languages={articleLanguages} onChooseLanguage={(targetLang, targetTitle) => { update('lang', targetLang); void openArticle(targetTitle, true, targetLang); }} /> : <HomeScreen feed={feed} loading={feedLoading} onOpen={title => void openArticle(title)} onRandom={randomArticle} enabled={prefs.feedEnabled} />)}
     {section === 'history' && <LibraryScreen title="Reading history" entries={filteredHistory} total={history.length} emptyTitle="No reading history" emptyText="Articles you read will appear here." filter={listFilter} setFilter={setListFilter} onOpen={entry => void openArticle(entry.title, true, entry.lang)} onClear={() => setHistory([])} onRemove={entry => setHistory(previous => previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)))} clearLabel="Clear history" />}
     {section === 'saved' && <LibraryScreen title="Saved articles" entries={filteredSaved} total={saved.length} emptyTitle="No saved articles" emptyText="Articles you save will appear here." filter={listFilter} setFilter={setListFilter} onOpen={entry => void openArticle(entry.title, true, entry.lang)} onClear={() => setSaved([])} onRemove={entry => setSaved(previous => previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)))} clearLabel="Remove all" />}
     {section === 'settings' && <SettingsScreen prefs={prefs} update={update} languageFilter={languageFilter} setLanguageFilter={setLanguageFilter} onClearData={() => { setHistory([]); setSaved([]); setSearchHistory([]); writeStore(cacheKey, {}); }} onReset={() => { setPrefs({ ...defaults }); setLanguageFilter(''); }} />}
@@ -238,17 +245,12 @@ export default function App() {
           {section !== 'home'
             ? <m3e-icon-button slot="leading-icon" title="Back" aria-label="Back" onClick={() => section === 'settings' ? returnFromSettings() : goToSection('home')}><m3e-icon variant="rounded" name="arrow_back" /></m3e-icon-button>
             : wide
-              ? <m3e-icon-button slot="leading-icon" title="Search Wikipedia" aria-label="Search Wikipedia" onClick={() => { const view = document.querySelector('m3e-search-view'); view?.setAttribute('open', ''); document.querySelector<HTMLInputElement>('input[aria-label="Search Wikipedia"]')?.focus(); }}><m3e-icon variant="rounded" name="search" /></m3e-icon-button>
+              ? <m3e-icon-button slot="leading-icon" title="Search Wikipedia" aria-label="Search Wikipedia" onClick={focusSearch}><m3e-icon variant="rounded" name="search" /></m3e-icon-button>
               : <m3e-icon-button slot="leading-icon" title="Open navigation" onClick={() => setShowNavigation(true)}><m3e-icon variant="rounded" name="menu" /></m3e-icon-button>}
-          {section === 'home' ? <m3e-search-view mode="fullscreen" clear-label="Clear search" close-label="Close search">
+          {section === 'home' ? <m3e-search-bar slot="title" clearable style={{ width: wide ? 'min(50vw, 520px)' : '100%' }}>
+            <m3e-icon slot="leading" variant="rounded" name="search" />
             <input slot="input" aria-label="Search Wikipedia" placeholder={'Search ' + selectedLangName + ' Wikipedia'} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') doSearch(); }} />
-            {searchActive && <m3e-list>
-              <m3e-list-item><span slot="overline">Wikipedia search</span><span>Results for “{query.trim()}”</span><m3e-button slot="trailing" variant="filled" onClick={doSearch}>Open article</m3e-button></m3e-list-item>
-              {searching && <m3e-list-item><m3e-circular-progress-indicator indeterminate />Searching Wikipedia…</m3e-list-item>}
-              {suggestions.map(item => <m3e-list-item-button key={item.pageid ?? item.title} onClick={() => void openArticle(item.title)}>{item.thumbnail?.source && <img slot="leading" src={item.thumbnail.source} alt="" />}<span>{item.title}</span><span slot="supporting-text">{item.description || 'Wikipedia article'}</span><m3e-icon variant="rounded" slot="trailing" name="chevron_right" /></m3e-list-item-button>)}
-              {!searching && suggestions.length === 0 && <m3e-list-item>No matches found. You can still open “{query.trim()}”.</m3e-list-item>}
-            </m3e-list>}
-          </m3e-search-view> : <span slot="title">{titleBySection[section]}</span>}
+          </m3e-search-bar> : <span slot="title">{titleBySection[section]}</span>}
           {section === 'settings' ? <m3e-icon-button slot="trailing" title="Reset settings" onClick={() => window.dispatchEvent(new Event('wikireader:reset-settings'))}><m3e-icon variant="rounded" name="refresh" /></m3e-icon-button> : section === 'home' ? <m3e-icon-button slot="trailing" title="Random article" onClick={() => void randomArticle()}><m3e-icon variant="rounded" name="shuffle" /></m3e-icon-button> : null}
         </m3e-app-bar>
         {loading && <m3e-linear-progress-indicator mode="indeterminate" />}
@@ -264,7 +266,7 @@ export default function App() {
       <m3e-icon-button title={isSaved ? 'Remove saved article' : 'Save article'} aria-label={isSaved ? 'Remove saved article' : 'Save article'} selected={isSaved} disabled={!article} onClick={toggleSaved}><m3e-icon variant="rounded" name="bookmark" filled={isSaved} /></m3e-icon-button>
       <m3e-icon-button title="Scroll to top" aria-label="Scroll to top" onClick={() => { const pane = document.querySelector<HTMLElement>('m3e-content-pane'); const scroller = pane?.shadowRoot?.querySelector<HTMLElement>('.scroll-container') || pane; scroller?.scrollTo({ top: 0, behavior: 'smooth' }); }}><m3e-icon variant="rounded" name="arrow_upward" /></m3e-icon-button>
       <m3e-icon-button title="Random article" aria-label="Random article" onClick={() => void randomArticle()}><m3e-icon variant="rounded" name="shuffle" /></m3e-icon-button>
-    </m3e-toolbar><m3e-fab className="reading-search-fab" variant="primary" size="small" aria-label="Search Wikipedia" title="Search Wikipedia" onClick={() => { const view = document.querySelector('m3e-search-view'); view?.setAttribute('open', ''); document.querySelector<HTMLInputElement>('input[aria-label="Search Wikipedia"]')?.focus(); }}><m3e-icon variant="rounded" name="search" /></m3e-fab></div>}
+    </m3e-toolbar><m3e-fab className="reading-search-fab" variant="primary-container" size="small" aria-label="Search Wikipedia" title="Search Wikipedia" onClick={focusSearch}><m3e-icon variant="rounded" name="search" /></m3e-fab></div>}
   </m3e-theme>;
 }
  
@@ -372,9 +374,8 @@ function ArticleScreen({ article, html, loading, saved, onBack, onSave, showCont
     <m3e-list><m3e-list-item><span slot="overline">Article tools</span><m3e-heading level="1" variant="display" size="small" style={{ fontFamily: 'serif' }}>{article.title}</m3e-heading><m3e-icon-button slot="trailing" title="Article contents" onClick={()=>setShowContents(!showContents)}><m3e-icon variant="rounded" name="format_list_bulleted"/></m3e-icon-button></m3e-list-item></m3e-list>
     {showLanguages && <m3e-card variant="outlined"><m3e-list-item>Available article languages</m3e-list-item><m3e-list-item><m3e-search-bar clearable><m3e-icon slot="leading" variant="rounded" name="search"/><input slot="input" aria-label="Search article languages" placeholder="Find language or title" value={languageQuery} onChange={event=>setLanguageQuery(event.target.value)}/></m3e-search-bar></m3e-list-item>{languages.filter(x=>(x.name+' '+x.lang+' '+x.title).toLowerCase().includes(languageQuery.toLowerCase())).map(x=><m3e-list-item-button key={x.lang} selected={x.lang===article.lang} onClick={()=>{setShowLanguages(false);setLanguageQuery('');onChooseLanguage(x.lang,x.title);}}><m3e-icon slot="leading" variant="rounded" name={x.lang===article.lang?'check_circle':'language'}/><span>{x.name||x.lang}</span><span slot="supporting-text">{x.title} · {x.lang}</span></m3e-list-item-button>)}</m3e-card>}
     {showContents && <m3e-card variant="outlined"><m3e-list-item>On this page</m3e-list-item>{headings.length?headings.map(x=><m3e-list-item-button key={x.id} onClick={()=>{document.getElementById(x.id)?.scrollIntoView({behavior:'smooth',block:'start'});setShowContents(false);}}>{x.text}</m3e-list-item-button>):<m3e-list-item>Contents will appear when the article loads.</m3e-list-item>}</m3e-card>}
-    <m3e-card variant="outlined">{article.thumbnail?.source&&!dataSaver&&<img src={article.thumbnail.source} alt={article.title} width={article.thumbnail.width} height={article.thumbnail.height} loading="lazy"/>}<m3e-list-item><span slot="overline">Wikipedia article</span><span>{article.title}</span>{article.description&&<span slot="supporting-text">{article.description}</span>}</m3e-list-item>{article.extract&&<m3e-list-item>{article.extract}</m3e-list-item>}</m3e-card>
     {loading&&<m3e-list-item><m3e-circular-progress-indicator indeterminate/>Loading full article…</m3e-list-item>}
-    {html&&<ArticleRenderer html={html} lang={article.lang||'en'} dataSaver={dataSaver} expandedSections={expandedSections} fontSize={fontSize} fontStyle={fontStyle} imageBackground={imageBackground} renderMath={renderMath} pageImageUri={article.thumbnail?.source} onLinkClick={title=>{const target=title.trim();if(target)window.dispatchEvent(new CustomEvent('wikireader:open-article',{detail:{title:target,lang:article.lang||'en'}}));}}/>}
+    {html&&<ArticleRenderer html={html} lang={article.lang||'en'} dataSaver={dataSaver} expandedSections={expandedSections} fontSize={fontSize} fontStyle={fontStyle} imageBackground={imageBackground} renderMath={renderMath} pageImageUri={article.thumbnail?.source} pageDescription={article.description} onLinkClick={title=>{const target=title.trim();if(target)window.dispatchEvent(new CustomEvent('wikireader:open-article',{detail:{title:target,lang:article.lang||'en'}}));}}/>}
     {!loading&&!html&&<m3e-list-item>The full article could not be loaded. A cached copy may be available when you reconnect.</m3e-list-item>}
     <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="check_circle"/>End of article<m3e-button slot="trailing" variant="text" onClick={onBack}>Keep exploring</m3e-button></m3e-list-item>
   </>;
@@ -410,7 +411,7 @@ function SettingsScreen({ prefs, update, languageFilter, setLanguageFilter, onCl
     <m3e-list>
       <m3e-list-item><span slot="overline">Reading</span><span>Language and typography</span></m3e-list-item>
       <m3e-list-item-button onClick={()=>setLanguageOpen(true)}><m3e-icon slot="leading" variant="rounded" name="translate"/><span>Wikipedia language</span><span slot="supporting-text">{languages.find(x=>x[0]===prefs.lang)?.[1] || prefs.lang} ({prefs.lang})</span><m3e-icon slot="trailing" variant="rounded" name="chevron_right"/></m3e-list-item-button>
-      <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="text_fields"/><span>Font style</span><m3e-button-group slot="trailing" variant="connected"><m3e-button variant={prefs.fontStyle==='sans'?'filled':'outlined'} shape="square" toggle aria-pressed={prefs.fontStyle==='sans'} onClick={()=>update('fontStyle','sans')}>Sans-serif</m3e-button><m3e-button variant={prefs.fontStyle==='serif'?'filled':'outlined'} shape="square" toggle aria-pressed={prefs.fontStyle==='serif'} onClick={()=>update('fontStyle','serif')}>Serif</m3e-button></m3e-button-group></m3e-list-item>
+      <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="text_fields"/><span>Font style</span><m3e-button-group slot="trailing" variant="connected"><m3e-button variant="tonal" shape="square" toggle aria-pressed={prefs.fontStyle==='sans'} onClick={()=>update('fontStyle','sans')}>Sans-serif</m3e-button><m3e-button variant="tonal" shape="square" toggle aria-pressed={prefs.fontStyle==='serif'} onClick={()=>update('fontStyle','serif')}>Serif</m3e-button></m3e-button-group></m3e-list-item>
       <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="format_size"/><span>Article font size</span><span slot="supporting-text">{prefs.fontSize} sp</span></m3e-list-item>
       <m3e-list-item><m3e-slider min={10} max={22} step={1} discrete labelled onInput={event=>{const thumb=(event.currentTarget as HTMLElement).querySelector<HTMLElement & {value?:number}>('m3e-slider-thumb');const value=Number(thumb?.value ?? thumb?.getAttribute('value') ?? prefs.fontSize);if(Number.isFinite(value))update('fontSize',Math.max(10,Math.min(22,Math.round(value))));}}><m3e-slider-thumb value={prefs.fontSize}/></m3e-slider></m3e-list-item>
       </m3e-list>
@@ -434,12 +435,17 @@ function LanguagePickerDialog({open,filter,setFilter,currentLang,title,onClose,o
 }
 
 function AboutScreen() {
-  return <m3e-list>
-    <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="menu_book" filled /><span>WikiReader</span><span slot="supporting-text">A simple reader for Wikipedia.</span></m3e-list-item>
-    <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="info" /><span>Version</span><span slot="supporting-text">2.5.5 desktop</span></m3e-list-item>
-    <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="code" /><span>Source code</span><span slot="supporting-text">GitHub</span><m3e-button slot="trailing" variant="text" href="https://github.com/nsh07/WikiReader" target="_blank">Open</m3e-button></m3e-list-item>
-    <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="gavel" /><span>License</span><span slot="supporting-text">GPL v3.0</span><m3e-button slot="trailing" variant="text" href="https://github.com/nsh07/WikiReader/blob/main/LICENSE" target="_blank">Open</m3e-button></m3e-list-item>
-    <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="translate" /><span>Translate WikiReader</span><span slot="supporting-text">Help translate the app.</span><m3e-button slot="trailing" variant="text" href="https://hosted.weblate.org/engage/wikireader/" target="_blank">Open</m3e-button></m3e-list-item>
-    <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="public" /><span>Wikipedia</span><span slot="supporting-text">Article content and media are supplied by Wikipedia and Wikimedia projects.</span><m3e-button slot="trailing" variant="text" href="https://wikipedia.org" target="_blank">Open</m3e-button></m3e-list-item>
-  </m3e-list>;
+  return <>
+    <m3e-list>
+      <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="menu_book" filled /><span>WikiReader</span><span slot="supporting-text">A simple reader for Wikipedia.</span></m3e-list-item>
+      <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="info" /><span>Version</span><span slot="supporting-text">2.5.5 desktop</span></m3e-list-item>
+    </m3e-list>
+    <m3e-list>
+      <m3e-list-item><span slot="overline">About</span><span>Resources</span></m3e-list-item>
+      <m3e-list-item-button onClick={() => window.open('https://github.com/nsh07/WikiReader', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="code" /><span>Source code</span><span slot="supporting-text">GitHub repository</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new" /></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => window.open('https://github.com/nsh07/WikiReader/blob/main/LICENSE', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="gavel" /><span>License</span><span slot="supporting-text">GPL v3.0</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new" /></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => window.open('https://hosted.weblate.org/engage/wikireader/', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="translate" /><span>Translate WikiReader</span><span slot="supporting-text">Help translate the app.</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new" /></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => window.open('https://wikipedia.org', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="public" /><span>Wikipedia</span><span slot="supporting-text">Article content and media are supplied by Wikipedia and Wikimedia projects.</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new" /></m3e-list-item-button>
+    </m3e-list>
+  </>;
 }
