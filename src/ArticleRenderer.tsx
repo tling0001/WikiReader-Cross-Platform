@@ -60,9 +60,9 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
       const value = cell ? Array.from(cell.childNodes).map((child, childIndex) => renderNode(child, key + '-info-' + index + '-' + childIndex, options)) : [];
       return { label: labelCell?.textContent?.replace('[edit]', '').trim() || '', heading: headingOnly ? labelCell?.textContent?.trim() || '' : '', value, hasValue: Boolean(cell) };
     }).filter(row => row.heading || row.hasValue);
-    const title = element.querySelector('caption')?.textContent?.trim() || parsedRows.find(row => row.heading)?.heading || 'Article information';
-    const visibleRows = parsedRows.filter(row => !row.heading);
-    return <m3e-card key={key} variant="filled"><m3e-list slot="content" variant="segmented"><m3e-list-item><span slot="overline">Article information</span><span>{title}</span></m3e-list-item>{visibleRows.map((row, index) => <m3e-list-item key={key + '-info-row-' + index}>{row.label && <span slot="overline">{row.label}</span>}<span>{row.value}</span></m3e-list-item>)}</m3e-list></m3e-card>;
+    const title = element.querySelector('caption')?.textContent?.trim() || parsedRows.find(row => row.heading)?.heading || '';
+    const visibleRows = parsedRows.filter(row => !row.heading && row.hasValue && !/^(image|caption|alt)$/i.test(row.label));
+    return <InfoboxCard key={key} title={title} rows={visibleRows.map((row, index) => ({ key: key + '-info-row-' + index, label: row.label, value: row.value }))} />;
   }
   if (tag === 'table') {
     const label = element.querySelector('caption')?.textContent?.trim() || 'Table';
@@ -100,6 +100,37 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
   return React.createElement(safeTag, props, ...children);
 }
 
+function InfoboxCard({ title, rows }: { title: string; rows: { key: string; label: string; value: ReactNode }[] }) {
+  const [expanded, setExpanded] = useState(false);
+  return <m3e-card variant="filled" className="article-infobox">
+    <m3e-list-item-button onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
+      <m3e-icon slot="leading" variant="rounded" name={expanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'} />
+      <span>Infobox</span>
+      {!expanded && title && <span slot="supporting-text">{title}</span>}
+    </m3e-list-item-button>
+    {expanded && <div className="infobox-content">
+      {title && <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif', textAlign: 'center' }}>{title}</m3e-heading>}
+      <m3e-list variant="segmented">
+        {rows.map(row => <m3e-list-item key={row.key}>
+          <strong>{row.label}</strong>
+          <span slot="supporting-text">{row.value}</span>
+        </m3e-list-item>)}
+      </m3e-list>
+    </div>}
+  </m3e-card>;
+}
+
+function ArticleSection({ title, headingId, initiallyExpanded, children }: { title: string; headingId?: string; initiallyExpanded: boolean; children: ReactNode }) {
+  const [expanded, setExpanded] = useState(initiallyExpanded);
+  return <m3e-card variant="filled" className="article-section">
+    <m3e-list-item-button onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
+      <m3e-icon slot="leading" variant="rounded" name={expanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'} />
+      <span id={headingId}><m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{title}</m3e-heading></span>
+    </m3e-list-item-button>
+    {expanded && <section className="article-section-content">{children}</section>}
+  </m3e-card>;
+}
+
 export default function ArticleRenderer({ html, lang, dataSaver, expandedSections, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, pageDescription, onLinkClick }: ArticleRendererProps) {
   const [selectedImage, setSelectedImage] = useState<{ src: string; caption: string } | null>(null);
   const sections = useMemo(() => {
@@ -121,20 +152,17 @@ export default function ArticleRenderer({ html, lang, dataSaver, expandedSection
     if (current.nodes.length || current.heading) groups.push(current);
     return { lead, groups };
   }, [html]);
-  const options: RenderOptions = { lang, dataSaver, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, firstImageSkipped: Boolean(sections.lead || !pageImageUri || dataSaver), onLinkClick, onImageClick: (src, caption) => setSelectedImage({ src, caption }) };
+  const options: RenderOptions = { lang, dataSaver, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, firstImageSkipped: Boolean(pageImageUri && !dataSaver), onLinkClick, onImageClick: (src, caption) => setSelectedImage({ src, caption }) };
   return <div className="article-content" style={{ fontFamily: fontStyle === 'serif' ? 'serif' : 'Roboto, Arial, sans-serif', fontSize: fontSize + 'px', lineHeight: 1.5, letterSpacing: '0.5px' }}>
-    {sections.lead && <section className="article-lead">{renderNode(sections.lead, 'article-lead', options)}</section>}
+    {pageImageUri && !dataSaver && <m3e-card variant={imageBackground ? 'filled' : 'outlined'}><img slot="header" src={pageImageUri} alt="Article lead image" loading="lazy" /></m3e-card>}
     {pageDescription && <m3e-list-item><span slot="supporting-text">{pageDescription}</span></m3e-list-item>}
-    {pageImageUri && !dataSaver && !sections.lead && <m3e-card variant={imageBackground ? 'filled' : 'outlined'}><img slot="header" src={pageImageUri} alt="Article lead image" loading="lazy" /></m3e-card>}
+    {sections.lead && <section className="article-lead">{renderNode(sections.lead, 'article-lead', options)}</section>}
     {sections.groups.map((section, index) => {
       const children = section.nodes.map((node, childIndex) => renderNode(node, index + '-' + childIndex, options));
       if (!section.heading) return <section key={'intro-' + index}>{children}</section>;
       const title = section.heading.querySelector('h2')?.textContent?.replace('[edit]', '').trim() || section.heading.textContent?.replace('[edit]', '').trim() || 'Section';
       const headingId = section.heading.querySelector('h2')?.id || section.heading.id || undefined;
-      return <m3e-expansion-panel key={'section-' + index} open={expandedSections} toggle-position="after">
-        <span slot="header" id={headingId}><m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{title}</m3e-heading></span>
-        <section>{children}</section>
-      </m3e-expansion-panel>;
+      return <ArticleSection key={'section-' + index} title={title} headingId={headingId} initiallyExpanded={expandedSections}>{children}</ArticleSection>;
     })}
     <m3e-dialog open={Boolean(selectedImage)} dismissible close-label="Close image" onClick={event => { if (event.target === event.currentTarget) setSelectedImage(null); }}>
       <span slot="header">{selectedImage?.caption || 'Image viewer'}</span>

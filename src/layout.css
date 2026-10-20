@@ -1,6 +1,11 @@
 html, body, #root { width:100%; height:100%; min-width:0; min-height:0; margin:0; overflow:hidden; }
 #root > m3e-theme.app-shell { display:flex; flex-direction:column; width:100%; height:100%; min-width:0; min-height:0; overflow:hidden; }
-m3e-app-bar { flex:0 0 auto; }
+m3e-app-bar { flex:0 0 auto; min-width:0; }
+.app-main > m3e-app-bar > .app-search-view { display:block; width:100%; min-width:0; flex:1 1 auto; }
+.app-content { background-color:var(--md-sys-color-surface-container-low); }
+.settings-page, .about-page { display:flex; flex-direction:column; gap:16px; min-width:0; }
+.settings-page > m3e-card, .about-page > m3e-card { display:block; min-width:0; }
+.settings-page m3e-list, .about-page m3e-list { display:block; min-width:0; }
 m3e-drawer-container { display:block; position:relative; flex:1 1 auto; width:100%; min-width:0; min-height:0; overflow:hidden; }
 .app-layout { display:flex; flex-direction:row; flex:1 1 auto; width:100%; height:100%; min-width:0; min-height:0; overflow:hidden; }
 .app-layout > m3e-nav-rail { flex:0 0 auto; height:100%; }
@@ -11,10 +16,16 @@ m3e-content-pane.app-content { display:block; width:100%; height:100%; min-width
 .reading-actions { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:1000; display:block; width:max-content; max-width:calc(100vw - 32px); }
 m3e-toolbar.reading-toolbar { position:static; transform:none; display:block; width:max-content; max-width:calc(100vw - 80px); overflow-x:auto; }
 m3e-fab.reading-search-fab { position:absolute; left:calc(100% + 16px); top:50%; transform:translateY(-50%); display:block; margin:0; }
-.screen-content { display:flex; flex-direction:column; gap:16px; box-sizing:border-box; min-width:0; padding:16px; }
+.screen-content { display:flex; flex-direction:column; gap:16px; box-sizing:border-box; min-width:0; padding:16px; background-color:var(--md-sys-color-surface-container-low); }
  .home-feed { display:flex; flex-direction:column; gap:24px; min-width:0; }
 .feed-section { display:flex; flex-direction:column; gap:8px; min-width:0; }
 .feed-card-content { display:flex; flex-direction:column; gap:8px; min-width:0; }
 .article-content { display:flex; flex-direction:column; gap:16px; min-width:0; }
+.article-infobox, .article-section { display:block; min-width:0; }
+.infobox-content, .article-section-content { display:flex; flex-direction:column; gap:8px; min-width:0; padding:8px 16px 16px; }
+.article-infobox m3e-list, .article-section m3e-list { display:block; min-width:0; }
+.article-infobox m3e-list-item strong { font-weight:700; }
 .screen-content img { max-width:100%; height:auto; object-fit:contain; }
+@media (min-width: 800px) { .app-main > m3e-app-bar > .app-search-view { width:100%; max-width:none; } }
+@media (max-width: 799px) { .app-main > m3e-app-bar > .app-search-view { width:min(100%, 360px); max-width:100%; } }
 @media (max-width: 480px) { .reading-actions { left:16px; transform:none; } m3e-toolbar.reading-toolbar { max-width:calc(100vw - 88px); } m3e-fab.reading-search-fab { left:calc(100% + 8px); } }
