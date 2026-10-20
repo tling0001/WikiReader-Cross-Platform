@@ -112,7 +112,7 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
 function InfoboxCard({ title, rows }: { title: string; rows: { key: string; label: string; value: ReactNode }[] }) {
   const [expanded, setExpanded] = useState(false);
   return <m3e-card variant="filled" className="article-infobox" style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container-low)' } as React.CSSProperties}>
-    <m3e-expansion-panel open={expanded} onToggle={(event: Event) => setExpanded((event.currentTarget as HTMLElement & { open: boolean }).open)} style={{ '--m3e-expansion-panel-container-color': 'var(--md-sys-color-surface-container-low)', '--m3e-expansion-panel-content-padding': '0 16px 16px' } as React.CSSProperties}>
+    <m3e-expansion-panel open={expanded} onToggle={(event) => setExpanded((event.currentTarget as HTMLElement & { open: boolean }).open)} style={{ '--m3e-expansion-panel-container-color': 'var(--md-sys-color-surface-container-low)', '--m3e-expansion-panel-content-padding': '0 16px 16px' } as React.CSSProperties}>
       <span slot="header"><m3e-icon variant="rounded" name="info" /><strong>Infobox</strong>{!expanded && title && <span className="infobox-compact-title">{title}</span>}</span>
       {title && <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif', textAlign: 'center' }}>{title}</m3e-heading>}
       <div className="infobox-facts">{rows.map(row => <div className="infobox-fact" key={row.key}><strong>{row.label}</strong><div>{row.value}</div></div>)}</div>
@@ -123,7 +123,7 @@ function InfoboxCard({ title, rows }: { title: string; rows: { key: string; labe
 function ArticleSection({ title, headingId, initiallyExpanded, children }: { title: string; headingId?: string; initiallyExpanded: boolean; children: ReactNode }) {
   const [expanded, setExpanded] = useState(initiallyExpanded);
   useEffect(() => setExpanded(initiallyExpanded), [initiallyExpanded, title]);
-  return <m3e-expansion-panel className="article-section" open={expanded} onToggle={(event: Event) => setExpanded((event.currentTarget as HTMLElement & { open: boolean }).open)} style={{ '--m3e-expansion-panel-container-color': 'var(--md-sys-color-surface-container-low)', '--m3e-expansion-panel-content-padding': '0 16px 16px' } as React.CSSProperties}>
+  return <m3e-expansion-panel className="article-section" open={expanded} onToggle={(event) => setExpanded((event.currentTarget as HTMLElement & { open: boolean }).open)} style={{ '--m3e-expansion-panel-container-color': 'var(--md-sys-color-surface-container-low)', '--m3e-expansion-panel-content-padding': '0 16px 16px' } as React.CSSProperties}>
     <span slot="header" id={headingId}><m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{title}</m3e-heading></span>
     {children}
   </m3e-expansion-panel>;
