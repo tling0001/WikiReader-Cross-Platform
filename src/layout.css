@@ -26,6 +26,6 @@ m3e-fab.reading-search-fab { position:absolute; left:calc(100% + 16px); top:50%;
 .article-infobox m3e-list, .article-section m3e-list { display:block; min-width:0; }
 .article-infobox m3e-list-item strong { font-weight:700; }
 .screen-content img { max-width:100%; height:auto; object-fit:contain; }
-@media (min-width: 800px) { .app-main > m3e-app-bar > .app-search-view { width:100%; max-width:none; } }
+@media (min-width: 800px) { .app-main > m3e-app-bar > .app-search-view { width:min(36vw, 420px); max-width:36vw; flex:0 1 420px; } }
 @media (max-width: 799px) { .app-main > m3e-app-bar > .app-search-view { width:min(100%, 360px); max-width:100%; } }
 @media (max-width: 480px) { .reading-actions { left:16px; transform:none; } m3e-toolbar.reading-toolbar { max-width:calc(100vw - 88px); } m3e-fab.reading-search-fab { left:calc(100% + 8px); } }
