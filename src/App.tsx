@@ -344,7 +344,7 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide, expanded }
     {enabled && feed.featured && <section className="feed-section">
       <m3e-heading level="2" variant="headline" size="medium">Featured article</m3e-heading>
       <m3e-heading level="6" variant="label" size="medium">{today}</m3e-heading>
-      <m3e-card variant="filled" actionable orientation={expanded ? 'horizontal' : 'vertical'} onClick={() => onOpen(feed.featured?.title || '') style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container)' } as React.CSSProperties}>
+      <m3e-card variant="filled" actionable orientation={expanded ? 'horizontal' : 'vertical'} onClick={() => onOpen(feed.featured?.title || '')} style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container)' } as React.CSSProperties}>
         {feed.featured.thumbnail?.source && <img slot="header" src={feed.featured.thumbnail.source} alt={feed.featured.title} width={feed.featured.thumbnail.width} height={feed.featured.thumbnail.height} loading="lazy" />}
         <div slot="content" className="feed-card-content">
           <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{feed.featured.title}</m3e-heading>
