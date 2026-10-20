@@ -258,12 +258,12 @@ export default function App() {
   </div>;
   const titleBySection: Record<Section, string> = { home: article?.title ?? 'WikiReader', history: 'History', saved: 'Saved articles', settings: 'Settings', about: 'About WikiReader' };
   return <m3e-theme className="app-shell" color={prefs.colorScheme.toLowerCase() === '#ffffff' ? '#6650a4' : prefs.colorScheme} scheme={prefs.blackTheme && prefs.theme === 'dark' ? 'dark' : prefs.theme} variant="tonal-spot" motion="expressive">
-    <m3e-drawer-container start={showNavigation && !wide} start-mode="over" onChange={event => setShowNavigation(Boolean((event.currentTarget as HTMLElement & { start?: boolean }).start))} style={{ backgroundColor: 'var(--md-sys-color-surface)' }}>
-      <nav slot="start" aria-label="Main navigation" style={{ backgroundColor: 'var(--md-sys-color-surface)', color: 'var(--md-sys-color-on-surface)' }}>
+    <m3e-drawer-container start={showNavigation && !wide} start-mode="over" onChange={event => setShowNavigation(Boolean((event.currentTarget as HTMLElement & { start?: boolean }).start))} style={{ backgroundColor: 'var(--md-sys-color-surface-container-low)' }}>
+      <nav slot="start" aria-label="Main navigation" style={{ backgroundColor: 'var(--md-sys-color-surface-container-low)', color: 'var(--md-sys-color-on-surface)' }}>
         <m3e-nav-rail mode="expanded">{navigationItems}</m3e-nav-rail>
       </nav>
-    <div className="app-layout" style={{ backgroundColor: 'var(--md-sys-color-surface)', color: 'var(--md-sys-color-on-surface)' }}>
-      {wide && <m3e-nav-rail mode={railExpanded ? "expanded" : "compact"} style={{ backgroundColor: 'var(--md-sys-color-surface)', color: 'var(--md-sys-color-on-surface)' }}>
+    <div className="app-layout" style={{ backgroundColor: 'var(--md-sys-color-surface-container-low)', color: 'var(--md-sys-color-on-surface)' }}>
+      {wide && <m3e-nav-rail mode={railExpanded ? "expanded" : "compact"} style={{ backgroundColor: 'var(--md-sys-color-surface-container-low)', color: 'var(--md-sys-color-on-surface)' }}>
         <m3e-icon-button title="Toggle navigation rail" aria-label="Toggle navigation rail" onClick={() => setRailExpanded(value => !value)}><m3e-icon variant="rounded" name={railExpanded ? "menu_open" : "menu"} /></m3e-icon-button>
         {navigationItems}
       </m3e-nav-rail>}

@@ -57,11 +57,20 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
       const valueCell = cells.find(cell => cell.tagName === 'TD') || null;
       const headingOnly = !valueCell && Boolean(labelCell) && (index === 0 || Number(labelCell?.getAttribute('colspan') || 1) > 1);
       const cell = valueCell || (headingOnly ? null : labelCell);
-      const value = cell ? Array.from(cell.childNodes).map((child, childIndex) => renderNode(child, key + '-info-' + index + '-' + childIndex, options)) : [];
-      return { label: labelCell?.textContent?.replace('[edit]', '').trim() || '', heading: headingOnly ? labelCell?.textContent?.trim() || '' : '', value, hasValue: Boolean(cell) };
+      const label = labelCell?.textContent?.replace('[edit]', '').trim() || '';
+      if (!cell || headingOnly || /^(image|caption|alt(?:\s.*)?)$/i.test(label)) {
+        return { label, heading: headingOnly ? labelCell?.textContent?.trim() || '' : '', value: [] as ReactNode[], hasValue: false };
+      }
+      // Infoboxes are text-and-fact summaries in this reader, not a second image gallery.
+      // Remove embedded media before rendering the value so thumbnail/image rows never leak into the card.
+      const cleanCell = cell.cloneNode(true) as HTMLElement;
+      cleanCell.querySelectorAll('img, picture, video, figure, .thumb, .infobox-image, .mw-file-element, .image').forEach(media => media.remove());
+      const hasText = Boolean(cleanCell.textContent?.trim()) || Boolean(cleanCell.querySelector('a, sup, span'));
+      const value = hasText ? Array.from(cleanCell.childNodes).map((child, childIndex) => renderNode(child, key + '-info-' + index + '-' + childIndex, options)) : [];
+      return { label, heading: '', value, hasValue: hasText };
     }).filter(row => row.heading || row.hasValue);
     const title = element.querySelector('caption')?.textContent?.trim() || parsedRows.find(row => row.heading)?.heading || '';
-    const visibleRows = parsedRows.filter(row => !row.heading && row.hasValue && !/^(image|caption|alt)$/i.test(row.label));
+    const visibleRows = parsedRows.filter(row => !row.heading && row.hasValue && !/^(image|caption|alt(?:\s.*)?)$/i.test(row.label));
     return <InfoboxCard key={key} title={title} rows={visibleRows.map((row, index) => ({ key: key + '-info-row-' + index, label: row.label, value: row.value }))} />;
   }
   if (tag === 'table') {
@@ -137,16 +146,23 @@ export default function ArticleRenderer({ html, lang, dataSaver, expandedSection
     const document = new DOMParser().parseFromString(html, 'text/html');
     const body: HTMLElement = document.querySelector<HTMLElement>('.mw-parser-output') || document.querySelector<HTMLElement>('body') || document.documentElement;
     document.querySelectorAll('h2,h3').forEach((heading,index)=>{if(!heading.id)heading.id='heading-'+index;});
+    // Extract the infobox itself rather than removing its containing wrapper/section,
+    // which can also contain the opening paragraphs of the article.
+    const lead = body.querySelector<HTMLElement>('table.infobox') || body.querySelector<HTMLElement>('.infobox');
+    lead?.remove();
     const nodes = Array.from(body.children).filter(element => !['SCRIPT','STYLE','NAV'].includes(element.tagName) && !element.classList.contains('mw-jump-link')) as HTMLElement[];
-    const leadIndex = nodes.findIndex(element => element.matches('table.infobox, .infobox') || Boolean(element.querySelector(':scope > table.infobox, :scope > .infobox')));
-    const lead = leadIndex >= 0 ? nodes.splice(leadIndex, 1)[0] : null;
     const groups: { heading: HTMLElement | null; nodes: HTMLElement[] }[] = [];
     let current: { heading: HTMLElement | null; nodes: HTMLElement[] } = { heading: null, nodes: [] };
     for (const element of nodes) {
       const heading: HTMLElement | null = element.tagName === 'H2' ? element : element.querySelector<HTMLElement>(':scope > h2');
       if (heading) {
         if (current.nodes.length || current.heading) groups.push(current);
-        current = { heading, nodes: [] };
+        // REST HTML may wrap an h2 and that section's body in the same section element.
+        // Keep the wrapper's non-heading children instead of accidentally discarding them.
+        const nestedContent = element === heading
+          ? []
+          : Array.from(element.children).filter(child => child !== heading) as HTMLElement[];
+        current = { heading, nodes: nestedContent };
       } else current.nodes.push(element);
     }
     if (current.nodes.length || current.heading) groups.push(current);

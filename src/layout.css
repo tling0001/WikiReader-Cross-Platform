@@ -2,6 +2,7 @@ html, body, #root { width:100%; height:100%; min-width:0; min-height:0; margin:0
 #root > m3e-theme.app-shell { display:flex; flex-direction:column; width:100%; height:100%; min-width:0; min-height:0; overflow:hidden; }
 m3e-app-bar { flex:0 0 auto; min-width:0; }
 .app-main > m3e-app-bar > .app-search-view { display:block; width:100%; min-width:0; flex:1 1 auto; }
+.app-main > m3e-app-bar { --m3e-app-bar-container-color:var(--md-sys-color-surface-container-low); --m3e-app-bar-container-color-on-scroll:var(--md-sys-color-surface-container-low); }
 .app-content { background-color:var(--md-sys-color-surface-container-low); }
 .settings-page, .about-page { display:flex; flex-direction:column; gap:16px; min-width:0; }
 .settings-page > m3e-card, .about-page > m3e-card { display:block; min-width:0; }
