@@ -228,12 +228,12 @@ export default function App() {
       <nav slot="start" aria-label="Main navigation" style={{ backgroundColor: 'var(--md-sys-color-surface)', color: 'var(--md-sys-color-on-surface)' }}>
         <m3e-nav-rail mode="expanded">{navigationItems}</m3e-nav-rail>
       </nav>
-    <m3e-split-pane className="app-layout" disabled orientation="horizontal" value={wide ? 13 : 0} min={wide ? 13 : 0} max={wide ? 13 : 0} style={{ backgroundColor: 'var(--md-sys-color-surface)', color: 'var(--md-sys-color-on-surface)' }}>
-      {wide && <m3e-nav-rail slot="start" mode={railExpanded ? "expanded" : "compact"} style={{ backgroundColor: 'var(--md-sys-color-surface)', color: 'var(--md-sys-color-on-surface)' }}>
+    <div className="app-layout" style={{ backgroundColor: 'var(--md-sys-color-surface)', color: 'var(--md-sys-color-on-surface)' }}>
+      {wide && <m3e-nav-rail mode={railExpanded ? "expanded" : "compact"} style={{ backgroundColor: 'var(--md-sys-color-surface)', color: 'var(--md-sys-color-on-surface)' }}>
         <m3e-icon-button title="Toggle navigation rail" aria-label="Toggle navigation rail" onClick={() => setRailExpanded(value => !value)}><m3e-icon variant="rounded" name={railExpanded ? "menu_open" : "menu"} /></m3e-icon-button>
         {navigationItems}
       </m3e-nav-rail>}
-      <div className="app-main" slot="end">
+      <div className="app-main">
         <m3e-app-bar centered>
           {section !== 'home'
             ? <m3e-icon-button slot="leading-icon" title="Back" aria-label="Back" onClick={() => section === 'settings' ? returnFromSettings() : goToSection('home')}><m3e-icon variant="rounded" name="arrow_back" /></m3e-icon-button>
@@ -254,7 +254,7 @@ export default function App() {
         {loading && <m3e-linear-progress-indicator mode="indeterminate" />}
         <m3e-content-pane className="app-content" style={{ backgroundColor: 'var(--md-sys-color-surface)', color: 'var(--md-sys-color-on-surface)' }}>{screenContent}</m3e-content-pane>
       </div>
-    </m3e-split-pane>
+    </div>
 </m3e-drawer-container>
     {showGlobalLanguagePicker && <LanguagePickerDialog open={showGlobalLanguagePicker} filter={globalLanguageFilter} setFilter={setGlobalLanguageFilter} currentLang={prefs.lang} title="Wikipedia language" onClose={() => setShowGlobalLanguagePicker(false)} onChoose={targetLang => { update('lang', targetLang); setShowGlobalLanguagePicker(false); setGlobalLanguageFilter(''); }} />}
     {section === 'home' && <div className="reading-actions"><m3e-toolbar className="reading-toolbar" variant="vibrant" shape="rounded" elevated>
@@ -264,7 +264,7 @@ export default function App() {
       <m3e-icon-button title={isSaved ? 'Remove saved article' : 'Save article'} aria-label={isSaved ? 'Remove saved article' : 'Save article'} selected={isSaved} disabled={!article} onClick={toggleSaved}><m3e-icon variant="rounded" name="bookmark" filled={isSaved} /></m3e-icon-button>
       <m3e-icon-button title="Scroll to top" aria-label="Scroll to top" onClick={() => { const pane = document.querySelector<HTMLElement>('m3e-content-pane'); const scroller = pane?.shadowRoot?.querySelector<HTMLElement>('.scroll-container') || pane; scroller?.scrollTo({ top: 0, behavior: 'smooth' }); }}><m3e-icon variant="rounded" name="arrow_upward" /></m3e-icon-button>
       <m3e-icon-button title="Random article" aria-label="Random article" onClick={() => void randomArticle()}><m3e-icon variant="rounded" name="shuffle" /></m3e-icon-button>
-    </m3e-toolbar><m3e-fab className="reading-search-fab" variant="primary-container" size="medium" aria-label="Search Wikipedia" title="Search Wikipedia" onClick={() => { const view = document.querySelector('m3e-search-view'); view?.setAttribute('open', ''); document.querySelector<HTMLInputElement>('input[aria-label="Search Wikipedia"]')?.focus(); }}><m3e-icon variant="rounded" name="search" /></m3e-fab></div>}
+    </m3e-toolbar><m3e-fab className="reading-search-fab" variant="primary" size="small" aria-label="Search Wikipedia" title="Search Wikipedia" onClick={() => { const view = document.querySelector('m3e-search-view'); view?.setAttribute('open', ''); document.querySelector<HTMLInputElement>('input[aria-label="Search Wikipedia"]')?.focus(); }}><m3e-icon variant="rounded" name="search" /></m3e-fab></div>}
   </m3e-theme>;
 }
  
