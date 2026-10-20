@@ -6,6 +6,7 @@ import '@m3e/web/button-group';
 import '@m3e/web/card';
 import '@m3e/web/content-pane';
 import '@m3e/web/dialog';
+import '@m3e/web/expansion-panel';
 import '@m3e/web/fab';
 import '@m3e/web/divider';
 import '@m3e/web/drawer-container';

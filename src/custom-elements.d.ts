@@ -37,7 +37,7 @@ declare module 'react' {
       'm3e-slider-thumb': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { value?: number; disabled?: boolean };
       'm3e-slide-group': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { threshold?: number; vertical?: boolean; disabled?: boolean; 'next-page-label'?: string; 'previous-page-label'?: string };
       'm3e-nav-menu-item': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { selected?: boolean; disabled?: boolean };
-      'm3e-list': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+      'm3e-list': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { variant?: 'standard' | 'segmented' };
       'm3e-list-item': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
       'm3e-list-item-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { selected?: boolean; disabled?: boolean };
     }
