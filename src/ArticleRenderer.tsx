@@ -47,7 +47,7 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
     if (!src) return null;
     const resolved = new URL(src, 'https://' + options.lang + '.wikipedia.org').toString();
     const caption = element.getAttribute('alt') || element.getAttribute('title') || '';
-    return <m3e-card key={key} variant={options.imageBackground ? 'filled' : 'outlined'}><img slot="header" src={resolved} alt={caption} loading="lazy" onClick={event => { event.stopPropagation(); options.onImageClick(resolved.replace(/\/\d+px-/, '/1200px-'), caption); }} /><m3e-list-item slot="content">{caption}</m3e-list-item></m3e-card>;
+    return <m3e-card key={key} variant="filled"><img slot="header" src={resolved} alt={caption} loading="lazy" onClick={event => { event.stopPropagation(); options.onImageClick(resolved.replace(/\/\d+px-/, '/1200px-'), caption); }} /><m3e-list-item slot="content">{caption}</m3e-list-item></m3e-card>;
   }
   if (tag === 'table' && classNames.includes('infobox')) {
     const rows = Array.from(element.querySelectorAll('tr'));
@@ -61,13 +61,13 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
       if (!cell || headingOnly || /^(image|caption|alt(?:\s.*)?)$/i.test(label)) {
         return { label, heading: headingOnly ? labelCell?.textContent?.trim() || '' : '', value: [] as ReactNode[], hasValue: false };
       }
-      // Infoboxes are text-and-fact summaries in this reader, not a second image gallery.
-      // Remove embedded media before rendering the value so thumbnail/image rows never leak into the card.
+      // Keep the infobox as a compact facts summary; its media belongs in the article body, not inside this card.
       const cleanCell = cell.cloneNode(true) as HTMLElement;
       cleanCell.querySelectorAll('img, picture, video, figure, .thumb, .infobox-image, .mw-file-element, .image').forEach(media => media.remove());
       const hasText = Boolean(cleanCell.textContent?.trim()) || Boolean(cleanCell.querySelector('a, sup, span'));
-      const value = hasText ? Array.from(cleanCell.childNodes).map((child, childIndex) => renderNode(child, key + '-info-' + index + '-' + childIndex, options)) : [];
-      return { label, heading: '', value, hasValue: hasText };
+      if (!hasText) return { label, heading: '', value: [] as ReactNode[], hasValue: false };
+      const value = Array.from(cleanCell.childNodes).map((child, childIndex) => renderNode(child, key + '-info-' + index + '-' + childIndex, options));
+      return { label, heading: '', value, hasValue: true };
     }).filter(row => row.heading || row.hasValue);
     const title = element.querySelector('caption')?.textContent?.trim() || parsedRows.find(row => row.heading)?.heading || '';
     const visibleRows = parsedRows.filter(row => !row.heading && row.hasValue && !/^(image|caption|alt(?:\s.*)?)$/i.test(row.label));
@@ -75,15 +75,15 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
   }
   if (tag === 'table') {
     const label = element.querySelector('caption')?.textContent?.trim() || 'Table';
-    return <m3e-card key={key} variant={options.imageBackground ? 'filled' : 'outlined'}><m3e-list-item><span>{label}</span><span slot="supporting-text">Article table</span></m3e-list-item><table>{children}</table></m3e-card>;
+    return <m3e-card key={key} variant="filled"><div slot="content"><m3e-list-item><span>{label}</span><span slot="supporting-text">Article table</span></m3e-list-item><table>{children}</table></div></m3e-card>;
   }
   if (classNames.includes('gallery')) {
     return <m3e-slide-group key={key} threshold={48} next-page-label="Next gallery images" previous-page-label="Previous gallery images">
-      {Array.from(element.children).map((child, index) => <m3e-card key={key + '-gallery-' + index} variant={options.imageBackground ? 'filled' : 'outlined'}>{renderNode(child, key + '-gallery-content-' + index, options)}</m3e-card>)}
+      {Array.from(element.children).map((child, index) => <m3e-card key={key + '-gallery-' + index} variant="filled"><div slot="content">{renderNode(child, key + '-gallery-content-' + index, options)}</div></m3e-card>)}
     </m3e-slide-group>;
   }
   if (tag === 'figure' || classNames.includes('thumb') || classNames.includes('gallerybox')) {
-    return <m3e-card key={key} variant={options.imageBackground ? 'filled' : 'outlined'}><div slot="content">{children}</div></m3e-card>;
+    return <m3e-card key={key} variant="filled"><div slot="content">{children}</div></m3e-card>;
   }
   if (tag === 'math' || classNames.includes('mwe-math-element')) {
     if (!options.renderMath) {
@@ -112,20 +112,21 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
 function InfoboxCard({ title, rows }: { title: string; rows: { key: string; label: string; value: ReactNode }[] }) {
   const [expanded, setExpanded] = useState(false);
   return <m3e-card variant="filled" className="article-infobox">
-    <m3e-list-item-button onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
-      <m3e-icon slot="leading" variant="rounded" name={expanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'} />
-      <span>Infobox</span>
-      {!expanded && title && <span slot="supporting-text">{title}</span>}
-    </m3e-list-item-button>
-    {expanded && <div className="infobox-content">
-      {title && <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif', textAlign: 'center' }}>{title}</m3e-heading>}
-      <m3e-list variant="segmented">
-        {rows.map(row => <m3e-list-item key={row.key}>
-          <strong>{row.label}</strong>
-          <span slot="supporting-text">{row.value}</span>
-        </m3e-list-item>)}
-      </m3e-list>
-    </div>}
+    <m3e-list slot="content" variant="standard">
+      <m3e-expandable-list-item open={expanded} onClick={() => setExpanded(value => !value)}>
+        <span>Infobox</span>
+        {!expanded && title && <span slot="supporting-text">{title}</span>}
+        <div slot="items" onClick={event => event.stopPropagation()}>
+          {title && <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif', textAlign: 'center' }}>{title}</m3e-heading>}
+          <m3e-list variant="standard">
+            {rows.map(row => <m3e-list-item key={row.key}>
+              <strong>{row.label}</strong>
+              <span slot="trailing">{row.value}</span>
+            </m3e-list-item>)}
+          </m3e-list>
+        </div>
+      </m3e-expandable-list-item>
+    </m3e-list>
   </m3e-card>;
 }
 
@@ -170,7 +171,7 @@ export default function ArticleRenderer({ html, lang, dataSaver, expandedSection
   }, [html]);
   const options: RenderOptions = { lang, dataSaver, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, firstImageSkipped: Boolean(pageImageUri && !dataSaver), onLinkClick, onImageClick: (src, caption) => setSelectedImage({ src, caption }) };
   return <div className="article-content" style={{ fontFamily: fontStyle === 'serif' ? 'serif' : 'Roboto, Arial, sans-serif', fontSize: fontSize + 'px', lineHeight: 1.5, letterSpacing: '0.5px' }}>
-    {pageImageUri && !dataSaver && <m3e-card variant={imageBackground ? 'filled' : 'outlined'}><img slot="header" src={pageImageUri} alt="Article lead image" loading="lazy" /></m3e-card>}
+    {pageImageUri && !dataSaver && <m3e-card variant="filled"><img slot="header" src={pageImageUri} alt="Article lead image" loading="lazy" /></m3e-card>}
     {pageDescription && <m3e-list-item><span slot="supporting-text">{pageDescription}</span></m3e-list-item>}
     {sections.lead && <section className="article-lead">{renderNode(sections.lead, 'article-lead', options)}</section>}
     {sections.groups.map((section, index) => {
@@ -182,7 +183,7 @@ export default function ArticleRenderer({ html, lang, dataSaver, expandedSection
     })}
     <m3e-dialog open={Boolean(selectedImage)} dismissible close-label="Close image" onClick={event => { if (event.target === event.currentTarget) setSelectedImage(null); }}>
       <span slot="header">{selectedImage?.caption || 'Image viewer'}</span>
-      {selectedImage && <m3e-card variant="outlined"><img src={selectedImage.src} alt={selectedImage.caption} /><m3e-list-item>{selectedImage.caption}</m3e-list-item></m3e-card>}
+      {selectedImage && <m3e-card variant="filled"><img slot="header" src={selectedImage.src} alt={selectedImage.caption} /><m3e-list-item slot="content">{selectedImage.caption}</m3e-list-item></m3e-card>}
       <m3e-list-item slot="actions"><m3e-button variant="filled" onClick={() => setSelectedImage(null)}>Close</m3e-button></m3e-list-item>
     </m3e-dialog>
   </div>;
