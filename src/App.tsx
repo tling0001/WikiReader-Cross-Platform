@@ -271,7 +271,7 @@ export default function App() {
   const searchActive = query.trim().length > 1;
   const screenContent = <div className="screen-content">
     {error && <m3e-card variant="filled"><m3e-list slot="content" variant="standard"><m3e-list-item><m3e-icon variant="rounded" slot="leading" name="error" />{error}<m3e-button slot="trailing" variant="text" onClick={() => setError('')}>Dismiss</m3e-button></m3e-list-item></m3e-list></m3e-card>}
-    {section === 'home' && (article ? <ArticleScreen article={article} html={articleHtml} loading={loading} saved={isSaved} onBack={back} onSave={toggleSaved} fontSize={prefs.fontSize} dataSaver={prefs.dataSaver} expandedSections={prefs.expandedSections} fontStyle={prefs.fontStyle} imageBackground={prefs.imageBackground} renderMath={prefs.renderMath} languages={articleLanguages} onChooseLanguage={(targetLang, targetTitle) => { update('lang', targetLang); void openArticle(targetTitle, true, targetLang); }} /> : <HomeScreen feed={feed} loading={feedLoading} onOpen={title => void openArticle(title)} onRandom={randomArticle} enabled={prefs.feedEnabled} />)}
+    {section === 'home' && (article ? <ArticleScreen article={article} html={articleHtml} loading={loading} saved={isSaved} onBack={back} onSave={toggleSaved} fontSize={prefs.fontSize} dataSaver={prefs.dataSaver} expandedSections={prefs.expandedSections} fontStyle={prefs.fontStyle} imageBackground={prefs.imageBackground} renderMath={prefs.renderMath} languages={articleLanguages} onChooseLanguage={(targetLang, targetTitle) => { update('lang', targetLang); void openArticle(targetTitle, true, targetLang); }} /> : <HomeScreen feed={feed} loading={feedLoading} onOpen={title => void openArticle(title)} onRandom={randomArticle} enabled={prefs.feedEnabled} wide={wide} />)}
     {section === 'history' && <LibraryScreen title="Reading history" entries={filteredHistory} total={history.length} emptyTitle="No reading history" emptyText="Articles you read will appear here." filter={listFilter} setFilter={setListFilter} onOpen={entry => void openArticle(entry.title, true, entry.lang)} onClear={() => setHistory([])} onRemove={entry => setHistory(previous => previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)))} clearLabel="Clear history" />}
     {section === 'saved' && <LibraryScreen title="Saved articles" entries={filteredSaved} total={saved.length} emptyTitle="No saved articles" emptyText="Articles you save will appear here." filter={listFilter} setFilter={setListFilter} onOpen={entry => void openArticle(entry.title, true, entry.lang)} onClear={() => setSaved([])} onRemove={entry => setSaved(previous => previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)))} clearLabel="Remove all" />}
     {section === 'settings' && <SettingsScreen prefs={prefs} update={update} languageFilter={languageFilter} setLanguageFilter={setLanguageFilter} onClearData={() => { setHistory([]); setSaved([]); setSearchHistory([]); writeStore(cacheKey, {}); }} onReset={() => { setPrefs({ ...defaults }); setLanguageFilter(''); }} />}
@@ -311,7 +311,7 @@ export default function App() {
           {section === 'settings' ? <m3e-icon-button slot="trailing" title="Reset settings" onClick={() => window.dispatchEvent(new Event('wikireader:reset-settings'))}><m3e-icon variant="rounded" name="refresh" /></m3e-icon-button> : section === 'home' ? <m3e-icon-button slot="trailing" variant="tonal" title="Random article" onClick={() => void randomArticle()}><m3e-icon variant="rounded" name="shuffle" filled /></m3e-icon-button> : null}
         </m3e-app-bar>
         {loading && <m3e-linear-progress-indicator mode={articleProgress === null ? 'indeterminate' : 'determinate'} value={articleProgress ?? undefined} max={1} />}
-        <m3e-content-pane className="app-content" style={{ backgroundColor: 'var(--md-sys-color-surface-container-low)', color: 'var(--md-sys-color-on-surface)' }}>{screenContent}</m3e-content-pane>
+        <m3e-content-pane className="app-content" style={{ '--m3e-content-pane-container-color': 'var(--md-sys-color-surface-container-low)', color: 'var(--md-sys-color-on-surface)' } as React.CSSProperties}>{screenContent}</m3e-content-pane>
       </div>
     </div>
 </m3e-drawer-container>
@@ -327,7 +327,7 @@ export default function App() {
   </m3e-theme>;
 }
  
-function HomeScreen({ feed, loading, onOpen, onRandom, enabled }: { feed: { featured: Page | null; trending: Page[]; image: FeedImage | null; news: FeedNews[]; onthisday: FeedOnThisDay[] }; loading: boolean; onOpen: (title: string) => void; onRandom: () => void; enabled: boolean }) {
+function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide }: { feed: { featured: Page | null; trending: Page[]; image: FeedImage | null; news: FeedNews[]; onthisday: FeedOnThisDay[] }; loading: boolean; onOpen: (title: string) => void; onRandom: () => void; enabled: boolean; wide: boolean }) {
   const [trendingPage, setTrendingPage] = useState(0);
   useEffect(() => setTrendingPage(0), [feed.trending.length, feed.featured?.title]);
   const pages = Math.max(1, Math.ceil(feed.trending.length / 5));
@@ -339,7 +339,7 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled }: { feed: { feat
     {enabled && feed.featured && <section className="feed-section">
       <m3e-heading level="2" variant="headline" size="medium">Featured article</m3e-heading>
       <m3e-heading level="6" variant="label" size="medium">{today}</m3e-heading>
-      <m3e-card variant="filled" actionable onClick={() => onOpen(feed.featured?.title || '')}>
+      <m3e-card variant="filled" actionable orientation={wide ? 'horizontal' : 'vertical'} onClick={() => onOpen(feed.featured?.title || '')} style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container)' } as React.CSSProperties}>
         {feed.featured.thumbnail?.source && <img slot="header" src={feed.featured.thumbnail.source} alt={feed.featured.title} width={feed.featured.thumbnail.width} height={feed.featured.thumbnail.height} loading="lazy" />}
         <div slot="content" className="feed-card-content">
           <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{feed.featured.title}</m3e-heading>
@@ -488,7 +488,7 @@ function SettingsScreen({ prefs, update, languageFilter, setLanguageFilter, onCl
       <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="info"/><span>Set as default</span><span slot="supporting-text">Configure your desktop system to open Wikipedia links with WikiReader.</span><m3e-button slot="trailing" variant="text" onClick={()=>window.open('https://gist.github.com/nsh07/ed7571f3e2014b412037626a39d68ecd','_blank','noopener,noreferrer')}>Instructions</m3e-button></m3e-list-item>
     </m3e-list>
     {themeOpen && <m3e-dialog open dismissible close-label="Close theme options"><span slot="header">Theme</span><m3e-list variant="segmented">{themes.map(x=><m3e-list-item-button key={x[0]} selected={prefs.theme===x[0]} onClick={()=>update('theme',x[0])}><m3e-icon slot="leading" variant="rounded" name={prefs.theme===x[0]?'radio_button_checked':'radio_button_unchecked'}/>{x[1]}</m3e-list-item-button>)}</m3e-list><m3e-list-item slot="actions"><m3e-button variant="text" onClick={()=>setThemeOpen(false)}>Close</m3e-button></m3e-list-item></m3e-dialog>}
-    {colorsOpen && <m3e-dialog open dismissible close-label="Close color schemes"><span slot="header">Choose color scheme</span><m3e-list variant="segmented">{colors.map(color=><m3e-list-item-button key={color} selected={prefs.colorScheme===color} onClick={()=>update('colorScheme',color)}><m3e-icon slot="leading" variant="rounded" name={prefs.colorScheme===color?'radio_button_checked':'radio_button_unchecked'}/>{color==='#ffffff'?'Dynamic color':color}</m3e-list-item-button>)}</m3e-list><m3e-list-item slot="actions"><m3e-button variant="text" onClick={()=>setColorsOpen(false)}>Done</m3e-button></m3e-list-item></m3e-dialog>}
+    {colorsOpen && <m3e-dialog open dismissible close-label="Close color schemes"><span slot="header">Choose color scheme</span><div slot="content">{colors.slice(0,12).map(color=><m3e-icon-button key={color} variant="filled" aria-label={'Choose color scheme ' + color} title={color} selected={prefs.colorScheme===color} style={{ '--m3e-icon-button-container-color': color, '--m3e-filled-icon-button-container-color': color } as React.CSSProperties} onClick={()=>update('colorScheme',color)}><m3e-icon variant="rounded" name={prefs.colorScheme===color?'check':'circle'} /></m3e-icon-button>)}<m3e-icon-button variant="filled" aria-label="Dynamic color" title="Dynamic color" selected={prefs.colorScheme==='#ffffff'} style={{ '--m3e-icon-button-container-color': '#ffffff', '--m3e-filled-icon-button-container-color': '#ffffff' } as React.CSSProperties} onClick={()=>update('colorScheme','#ffffff')}><m3e-icon variant="rounded" name={prefs.colorScheme==='#ffffff'?'check':'palette'} /></m3e-icon-button></div><m3e-list-item slot="actions"><m3e-button variant="text" onClick={()=>setColorsOpen(false)}>Done</m3e-button></m3e-list-item></m3e-dialog>}
     <LanguagePickerDialog open={languageOpen} filter={languageFilter} setFilter={setLanguageFilter} currentLang={prefs.lang} title="Wikipedia language" onClose={()=>setLanguageOpen(false)} onChoose={target=>{update('lang',target);setLanguageFilter('');setLanguageOpen(false);}}/>
     {clearOpen && <m3e-dialog open dismissible close-label="Cancel clearing data"><span slot="header">Clear local data?</span><m3e-list-item>This removes saved articles, history, search history, and cached article pages.</m3e-list-item><m3e-list-item slot="actions"><m3e-button variant="text" onClick={()=>setClearOpen(false)}>Cancel</m3e-button><m3e-button variant="filled" onClick={()=>{onClearData();setClearOpen(false);}}>Clear data</m3e-button></m3e-list-item></m3e-dialog>}
     {resetOpen && <m3e-dialog open dismissible close-label="Cancel resetting settings"><span slot="header">Reset settings?</span><m3e-list-item>Preferences return to defaults. Saved articles and history are kept.</m3e-list-item><m3e-list-item slot="actions"><m3e-button variant="text" onClick={()=>setResetOpen(false)}>Cancel</m3e-button><m3e-button variant="filled" onClick={()=>{onReset();setResetOpen(false);}}>Reset</m3e-button></m3e-list-item></m3e-dialog>}
@@ -499,17 +499,27 @@ function LanguagePickerDialog({open,filter,setFilter,currentLang,title,onClose,o
 }
 
 function AboutScreen() {
-  return <>
+  return <div className="about-page">
+    <m3e-card variant="filled"><div slot="content">
+      <m3e-list variant="standard"><m3e-list-item><m3e-icon slot="leading" variant="rounded" name="menu_book" filled/><span>WikiReader</span><span slot="supporting-text">A simple reader for Wikipedia.</span></m3e-list-item></m3e-list>
+      <m3e-heading level="6" variant="label" size="large">A focused Wikipedia reading experience</m3e-heading>
+    </div></m3e-card>
     <m3e-list variant="segmented">
-      <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="menu_book" filled /><span>WikiReader</span><span slot="supporting-text">A simple reader for Wikipedia.</span></m3e-list-item>
-      <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="info" /><span>Version</span><span slot="supporting-text">2.5.5 desktop</span></m3e-list-item>
+      <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="info"/><span>Version</span><span slot="supporting-text">2.5.5 desktop</span></m3e-list-item>
+      <m3e-list-item-button onClick={() => window.open('https://github.com/nsh07/WikiReader', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="code"/><span>Source code</span><span slot="supporting-text">GitHub</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => window.open('https://github.com/nsh07/WikiReader/blob/main/LICENSE', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="gavel"/><span>License</span><span slot="supporting-text">GPL v3.0</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => window.open('https://github.com/nsh07/WikiReader/releases', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="system_update_alt"/><span>Releases</span><span slot="supporting-text">Download the latest version</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => window.open('https://hosted.weblate.org/engage/wikireader/', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="translate"/><span>Translate WikiReader</span><span slot="supporting-text">Help translate the app.</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
     </m3e-list>
+    <m3e-heading level="6" variant="label" size="large">Author</m3e-heading>
     <m3e-list variant="segmented">
-      <m3e-list-item><span slot="overline">About</span><span>Resources</span></m3e-list-item>
-      <m3e-list-item-button onClick={() => window.open('https://github.com/nsh07/WikiReader', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="code" /><span>Source code</span><span slot="supporting-text">GitHub repository</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new" /></m3e-list-item-button>
-      <m3e-list-item-button onClick={() => window.open('https://github.com/nsh07/WikiReader/blob/main/LICENSE', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="gavel" /><span>License</span><span slot="supporting-text">GPL v3.0</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new" /></m3e-list-item-button>
-      <m3e-list-item-button onClick={() => window.open('https://hosted.weblate.org/engage/wikireader/', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="translate" /><span>Translate WikiReader</span><span slot="supporting-text">Help translate the app.</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new" /></m3e-list-item-button>
-      <m3e-list-item-button onClick={() => window.open('https://wikipedia.org', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="public" /><span>Wikipedia</span><span slot="supporting-text">Article content and media are supplied by Wikipedia and Wikimedia projects.</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new" /></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => window.open('https://github.com/nsh07', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="code"/><span>Nishant Mishra</span><span slot="supporting-text">Other projects</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => window.open('https://github.com/sponsors/nsh07', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="favorite"/><span>Donate</span><span slot="supporting-text">Support my work</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
     </m3e-list>
-  </>;
+    <m3e-heading level="6" variant="label" size="large">Wikipedia</m3e-heading>
+    <m3e-list variant="segmented">
+      <m3e-list-item-button onClick={() => window.open('https://wikipedia.org', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="public"/><span>Wikipedia</span><span slot="supporting-text">Article content and media are supplied by Wikipedia and Wikimedia projects.</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => window.open('https://wikimediafoundation.org/support/', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="volunteer_activism"/><span>Support Wikipedia</span><span slot="supporting-text">Donate to the Wikimedia Foundation</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
+    </m3e-list>
+  </div>;
 }

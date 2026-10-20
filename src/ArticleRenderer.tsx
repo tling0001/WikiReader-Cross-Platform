@@ -1,15 +1,5 @@
 import React, { useMemo, useState, type ReactNode } from 'react';
 
-declare module 'react' {
-  namespace JSX {
-    interface IntrinsicElements {
-      'm3e-expandable-list-item': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
-        open?: boolean;
-      };
-    }
-  }
-}
-
 type ArticleRendererProps = {
   html: string;
   lang: string;
@@ -79,7 +69,7 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
       const value = Array.from(cleanCell.childNodes).map((child, childIndex) => renderNode(child, key + '-info-' + index + '-' + childIndex, options));
       return { label, heading: '', value, hasValue: true };
     }).filter(row => row.heading || row.hasValue);
-    const title = element.querySelector('caption')?.textContent?.trim() || parsedRows.find(row => row.heading)?.heading || '';
+    const title = element.querySelector('caption')?.textContent?.trim() || rows.find(row => (row.querySelector('th')?.textContent || '').replace('[edit]', '').trim().toLowerCase() === 'name')?.querySelector('td')?.textContent?.trim() || parsedRows.find(row => row.heading)?.heading || '';
     const visibleRows = parsedRows.filter(row => !row.heading && row.hasValue && !/^(image|caption|alt(?:\s.*)?)$/i.test(row.label));
     return <InfoboxCard key={key} title={title} rows={visibleRows.map((row, index) => ({ key: key + '-info-row-' + index, label: row.label, value: row.value }))} />;
   }
@@ -122,32 +112,35 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
 function InfoboxCard({ title, rows }: { title: string; rows: { key: string; label: string; value: ReactNode }[] }) {
   const [expanded, setExpanded] = useState(false);
   return <m3e-card variant="filled" className="article-infobox">
-    <m3e-list slot="content" variant="standard">
-      <m3e-expandable-list-item open={expanded} onClick={() => setExpanded(value => !value)}>
-        <span>Infobox</span>
-        {!expanded && title && <span slot="supporting-text">{title}</span>}
-        <div slot="items" onClick={event => event.stopPropagation()}>
-          {title && <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif', textAlign: 'center' }}>{title}</m3e-heading>}
-          <m3e-list variant="standard">
-            {rows.map(row => <m3e-list-item key={row.key}>
-              <strong>{row.label}</strong>
-              <span slot="trailing">{row.value}</span>
-            </m3e-list-item>)}
-          </m3e-list>
-        </div>
-      </m3e-expandable-list-item>
-    </m3e-list>
+    <div slot="content">
+      <m3e-list variant="standard">
+        <m3e-list-item-button onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
+          <m3e-icon slot="leading" variant="rounded" name={expanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'} />
+          <span>Infobox</span>
+          {!expanded && title && <span slot="supporting-text">{title}</span>}
+        </m3e-list-item-button>
+      </m3e-list>
+      {expanded && <div>
+        {title && <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif', textAlign: 'center', padding: '8px 16px' }}>{title}</m3e-heading>}
+        <m3e-list variant="standard">
+          {rows.map(row => <m3e-list-item key={row.key}>
+            <span>{row.label}</span>
+            <span slot="trailing">{row.value}</span>
+          </m3e-list-item>)}
+        </m3e-list>
+      </div>}
+    </div>
   </m3e-card>;
 }
 
 function ArticleSection({ title, headingId, initiallyExpanded, children }: { title: string; headingId?: string; initiallyExpanded: boolean; children: ReactNode }) {
   const [expanded, setExpanded] = useState(initiallyExpanded);
-  return <m3e-card variant="filled" className="article-section">
+  return <m3e-card variant="filled" className="article-section" style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface)' } as React.CSSProperties}>
     <m3e-list-item-button onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
       <m3e-icon slot="leading" variant="rounded" name={expanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'} />
       <span id={headingId}><m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{title}</m3e-heading></span>
     </m3e-list-item-button>
-    {expanded && <section className="article-section-content">{children}</section>}
+    {expanded && <section className="article-section-content" style={{ backgroundColor: 'var(--md-sys-color-surface)' }}>{children}</section>}
   </m3e-card>;
 }
 
