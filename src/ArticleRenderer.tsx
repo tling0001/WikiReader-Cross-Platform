@@ -1,4 +1,4 @@
-import React, { useMemo, useState, type ReactNode } from 'react';
+import React, { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 type ArticleRendererProps = {
   html: string;
@@ -111,37 +111,22 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
 
 function InfoboxCard({ title, rows }: { title: string; rows: { key: string; label: string; value: ReactNode }[] }) {
   const [expanded, setExpanded] = useState(false);
-  return <m3e-card variant="filled" className="article-infobox">
-    <div slot="content">
-      <m3e-list variant="standard">
-        <m3e-list-item-button onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
-          <m3e-icon slot="leading" variant="rounded" name={expanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'} />
-          <span>Infobox</span>
-          {!expanded && title && <span slot="supporting-text">{title}</span>}
-        </m3e-list-item-button>
-      </m3e-list>
-      {expanded && <div>
-        {title && <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif', textAlign: 'center', padding: '8px 16px' }}>{title}</m3e-heading>}
-        <m3e-list variant="standard">
-          {rows.map(row => <m3e-list-item key={row.key}>
-            <span>{row.label}</span>
-            <span slot="trailing">{row.value}</span>
-          </m3e-list-item>)}
-        </m3e-list>
-      </div>}
-    </div>
+  return <m3e-card variant="filled" className="article-infobox" style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container-low)' } as React.CSSProperties}>
+    <m3e-expansion-panel open={expanded} onToggle={(event: Event) => setExpanded((event.currentTarget as HTMLElement & { open: boolean }).open)} style={{ '--m3e-expansion-panel-container-color': 'var(--md-sys-color-surface-container-low)', '--m3e-expansion-panel-content-padding': '0 16px 16px' } as React.CSSProperties}>
+      <span slot="header"><m3e-icon variant="rounded" name="info" /><strong>Infobox</strong>{!expanded && title && <span className="infobox-compact-title">{title}</span>}</span>
+      {title && <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif', textAlign: 'center' }}>{title}</m3e-heading>}
+      <div className="infobox-facts">{rows.map(row => <div className="infobox-fact" key={row.key}><strong>{row.label}</strong><div>{row.value}</div></div>)}</div>
+    </m3e-expansion-panel>
   </m3e-card>;
 }
 
 function ArticleSection({ title, headingId, initiallyExpanded, children }: { title: string; headingId?: string; initiallyExpanded: boolean; children: ReactNode }) {
   const [expanded, setExpanded] = useState(initiallyExpanded);
-  return <m3e-card variant="filled" className="article-section" style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface)' } as React.CSSProperties}>
-    <m3e-list-item-button onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
-      <m3e-icon slot="leading" variant="rounded" name={expanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'} />
-      <span id={headingId}><m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{title}</m3e-heading></span>
-    </m3e-list-item-button>
-    {expanded && <section className="article-section-content" style={{ backgroundColor: 'var(--md-sys-color-surface)' }}>{children}</section>}
-  </m3e-card>;
+  useEffect(() => setExpanded(initiallyExpanded), [initiallyExpanded, title]);
+  return <m3e-expansion-panel className="article-section" open={expanded} onToggle={(event: Event) => setExpanded((event.currentTarget as HTMLElement & { open: boolean }).open)} style={{ '--m3e-expansion-panel-container-color': 'var(--md-sys-color-surface-container-low)', '--m3e-expansion-panel-content-padding': '0 16px 16px' } as React.CSSProperties}>
+    <span slot="header" id={headingId}><m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{title}</m3e-heading></span>
+    {children}
+  </m3e-expansion-panel>;
 }
 
 export default function ArticleRenderer({ html, lang, dataSaver, expandedSections, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, pageDescription, onLinkClick }: ArticleRendererProps) {
