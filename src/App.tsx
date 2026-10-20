@@ -76,6 +76,7 @@ export default function App() {
   const [languageFilter, setLanguageFilter] = useState('');
   const [listFilter, setListFilter] = useState('');
   const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 600px)').matches);
+  const [expandedLayout, setExpandedLayout] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 840px)').matches);
   const [showNavigation, setShowNavigation] = useState(false);
   const [railExpanded, setRailExpanded] = useState(false);
   const [showGlobalLanguagePicker, setShowGlobalLanguagePicker] = useState(false);
@@ -88,7 +89,11 @@ export default function App() {
     const updateWidth = () => setWide(query.matches);
     updateWidth();
     query.addEventListener('change', updateWidth);
-    return () => query.removeEventListener('change', updateWidth);
+    const expandedQuery = window.matchMedia('(min-width: 840px)');
+    const updateExpanded = () => setExpandedLayout(expandedQuery.matches);
+    updateExpanded();
+    expandedQuery.addEventListener('change', updateExpanded);
+    return () => { query.removeEventListener('change', updateWidth); expandedQuery.removeEventListener('change', updateExpanded); };
   }, []);
 
   useEffect(() => { writeStore('wr-preferences', prefs); }, [prefs]);
@@ -271,7 +276,7 @@ export default function App() {
   const searchActive = query.trim().length > 1;
   const screenContent = <div className="screen-content">
     {error && <m3e-card variant="filled"><m3e-list slot="content" variant="standard"><m3e-list-item><m3e-icon variant="rounded" slot="leading" name="error" />{error}<m3e-button slot="trailing" variant="text" onClick={() => setError('')}>Dismiss</m3e-button></m3e-list-item></m3e-list></m3e-card>}
-    {section === 'home' && (article ? <ArticleScreen article={article} html={articleHtml} loading={loading} saved={isSaved} onBack={back} onSave={toggleSaved} fontSize={prefs.fontSize} dataSaver={prefs.dataSaver} expandedSections={prefs.expandedSections} fontStyle={prefs.fontStyle} imageBackground={prefs.imageBackground} renderMath={prefs.renderMath} languages={articleLanguages} onChooseLanguage={(targetLang, targetTitle) => { update('lang', targetLang); void openArticle(targetTitle, true, targetLang); }} /> : <HomeScreen feed={feed} loading={feedLoading} onOpen={title => void openArticle(title)} onRandom={randomArticle} enabled={prefs.feedEnabled} wide={wide} />)}
+    {section === 'home' && (article ? <ArticleScreen article={article} html={articleHtml} loading={loading} saved={isSaved} onBack={back} onSave={toggleSaved} fontSize={prefs.fontSize} dataSaver={prefs.dataSaver} expandedSections={prefs.expandedSections} fontStyle={prefs.fontStyle} imageBackground={prefs.imageBackground} renderMath={prefs.renderMath} languages={articleLanguages} onChooseLanguage={(targetLang, targetTitle) => { update('lang', targetLang); void openArticle(targetTitle, true, targetLang); }} /> : <HomeScreen feed={feed} loading={feedLoading} onOpen={title => void openArticle(title)} onRandom={randomArticle} enabled={prefs.feedEnabled} wide={wide} expanded={expandedLayout} />)}
     {section === 'history' && <LibraryScreen title="Reading history" entries={filteredHistory} total={history.length} emptyTitle="No reading history" emptyText="Articles you read will appear here." filter={listFilter} setFilter={setListFilter} onOpen={entry => void openArticle(entry.title, true, entry.lang)} onClear={() => setHistory([])} onRemove={entry => setHistory(previous => previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)))} clearLabel="Clear history" />}
     {section === 'saved' && <LibraryScreen title="Saved articles" entries={filteredSaved} total={saved.length} emptyTitle="No saved articles" emptyText="Articles you save will appear here." filter={listFilter} setFilter={setListFilter} onOpen={entry => void openArticle(entry.title, true, entry.lang)} onClear={() => setSaved([])} onRemove={entry => setSaved(previous => previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)))} clearLabel="Remove all" />}
     {section === 'settings' && <SettingsScreen prefs={prefs} update={update} languageFilter={languageFilter} setLanguageFilter={setLanguageFilter} onClearData={() => { setHistory([]); setSaved([]); setSearchHistory([]); writeStore(cacheKey, {}); }} onReset={() => { setPrefs({ ...defaults }); setLanguageFilter(''); }} />}
@@ -327,7 +332,7 @@ export default function App() {
   </m3e-theme>;
 }
  
-function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide }: { feed: { featured: Page | null; trending: Page[]; image: FeedImage | null; news: FeedNews[]; onthisday: FeedOnThisDay[] }; loading: boolean; onOpen: (title: string) => void; onRandom: () => void; enabled: boolean; wide: boolean }) {
+function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide, expanded }: { feed: { featured: Page | null; trending: Page[]; image: FeedImage | null; news: FeedNews[]; onthisday: FeedOnThisDay[] }; loading: boolean; onOpen: (title: string) => void; onRandom: () => void; enabled: boolean; wide: boolean; expanded: boolean }) {
   const [trendingPage, setTrendingPage] = useState(0);
   useEffect(() => setTrendingPage(0), [feed.trending.length, feed.featured?.title]);
   const pages = Math.max(1, Math.ceil(feed.trending.length / 5));
@@ -339,14 +344,12 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide }: { feed: 
     {enabled && feed.featured && <section className="feed-section">
       <m3e-heading level="2" variant="headline" size="medium">Featured article</m3e-heading>
       <m3e-heading level="6" variant="label" size="medium">{today}</m3e-heading>
-      <m3e-card variant="filled" actionable orientation={wide ? 'horizontal' : 'vertical'} onClick={() => onOpen(feed.featured?.title || '')} style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container)' } as React.CSSProperties}>
+      <m3e-card variant="filled" actionable orientation={expanded ? 'horizontal' : 'vertical'} onClick={() => onOpen(feed.featured?.title || '') style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container)' } as React.CSSProperties}>
         {feed.featured.thumbnail?.source && <img slot="header" src={feed.featured.thumbnail.source} alt={feed.featured.title} width={feed.featured.thumbnail.width} height={feed.featured.thumbnail.height} loading="lazy" />}
         <div slot="content" className="feed-card-content">
           <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{feed.featured.title}</m3e-heading>
-          {(feed.featured.description || feed.featured.extract) && <m3e-list variant="segmented">
-            {feed.featured.description && <m3e-list-item><span slot="supporting-text">{feed.featured.description}</span></m3e-list-item>}
-            {feed.featured.extract && <m3e-list-item>{feed.featured.extract.length > 520 ? feed.featured.extract.slice(0, 517).trimEnd() + '…' : feed.featured.extract}</m3e-list-item>}
-          </m3e-list>}
+          {feed.featured.description && <p className="feed-card-description">{feed.featured.description}</p>}
+          {feed.featured.extract && <p className="feed-card-extract">{feed.featured.extract.length > 520 ? feed.featured.extract.slice(0, 517).trimEnd() + '…' : feed.featured.extract}</p>}
         </div>
       </m3e-card>
     </section>}
@@ -369,8 +372,8 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide }: { feed: 
       <m3e-card variant="filled">
         <img slot="header" src={(feed.image.thumbnail || feed.image.image)?.source} alt={feed.image.description?.text || feed.image.title || 'Picture of the day'} width={(feed.image.thumbnail || feed.image.image)?.width} height={(feed.image.thumbnail || feed.image.image)?.height} loading="lazy" />
         <div slot="content" className="feed-card-content">
-          {feed.image.description?.text && <m3e-list-item>{feed.image.description.text}</m3e-list-item>}
-          {(feed.image.artist?.name || feed.image.artist?.text) && <m3e-list-item><span slot="supporting-text">{feed.image.artist.name || feed.image.artist.text}{feed.image.credit?.text ? ' ('+feed.image.credit.text.split(';')[0]+')' : ''}</span></m3e-list-item>}
+          {feed.image.description?.text && <p className="feed-card-extract">{feed.image.description.text}</p>}
+          {(feed.image.artist?.name || feed.image.artist?.text) && <p className="feed-card-description">{feed.image.artist.name || feed.image.artist.text}{feed.image.credit?.text ? ' ('+feed.image.credit.text.split(';')[0]+')' : ''}</p>}
         </div>
       </m3e-card>
     </section>}
