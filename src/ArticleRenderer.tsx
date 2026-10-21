@@ -11,7 +11,6 @@ type ArticleRendererProps = {
   renderMath: boolean;
   onLinkClick: (title: string) => void;
   pageImageUri?: string;
-  pageDescription?: string;
 };
 
 type RenderOptions = Pick<ArticleRendererProps, 'lang' | 'dataSaver' | 'fontSize' | 'fontStyle' | 'imageBackground' | 'renderMath' | 'onLinkClick'> & { onImageClick: (src: string, caption: string) => void; pageImageUri?: string; firstImageSkipped?: boolean };
@@ -42,12 +41,25 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
   }
   if (tag === 'img') {
     if (options.dataSaver) return null;
-    if (options.pageImageUri && !options.firstImageSkipped) { options.firstImageSkipped = true; return null; }
-    const src = element.getAttribute('src') || element.getAttribute('data-src') || '';
+    const srcset = element.getAttribute('srcset') || element.getAttribute('data-srcset') || '';
+    const src = element.getAttribute('src') || element.getAttribute('data-src') || element.getAttribute('data-original') || srcset.split(',')[0]?.trim().split(/\s+/)[0] || '';
     if (!src) return null;
-    const resolved = new URL(src, 'https://' + options.lang + '.wikipedia.org').toString();
+    let resolved: string;
+    try { resolved = new URL(src, 'https://' + options.lang + '.wikipedia.org').toString(); }
+    catch { return null; }
     const caption = element.getAttribute('alt') || element.getAttribute('title') || '';
-    return <m3e-card key={key} variant="filled"><img slot="header" src={resolved} alt={caption} loading="lazy" onClick={event => { event.stopPropagation(); options.onImageClick(resolved.replace(/\/\d+px-/, '/1200px-'), caption); }} /><m3e-list-item slot="content">{caption}</m3e-list-item></m3e-card>;
+    const filename = (value: string) => {
+      try { return decodeURIComponent(new URL(value, 'https://' + options.lang + '.wikipedia.org').pathname.split('/').pop() || '').replace(/^\d+px-/, ''); }
+      catch { return value.split('/').pop()?.replace(/^\d+px-/, '') || value; }
+    };
+    if (options.pageImageUri && !options.firstImageSkipped && filename(resolved) === filename(options.pageImageUri)) {
+      options.firstImageSkipped = true;
+      return null;
+    }
+    return <m3e-card key={key} variant="filled" style={{width:'100%',maxWidth:'512px',alignSelf:'center'}}>
+      <img slot="header" src={resolved} alt={caption} loading="lazy" decoding="async" style={{display:'block',width:'100%',height:'auto',objectFit:'contain'}} onClick={event => { event.stopPropagation(); options.onImageClick(resolved.replace(/\/\d+px-/, '/1200px-'), caption); }} />
+      {caption && <div slot="content">{caption}</div>}
+    </m3e-card>;
   }
   if (tag === 'table' && classNames.includes('infobox')) {
     const rows = Array.from(element.querySelectorAll('tr'));
@@ -83,7 +95,7 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
     </m3e-slide-group>;
   }
   if (tag === 'figure' || classNames.includes('thumb') || classNames.includes('gallerybox')) {
-    return <m3e-card key={key} variant="filled"><div slot="content">{children}</div></m3e-card>;
+    return <div key={key}>{children}</div>;
   }
   if (tag === 'math' || classNames.includes('mwe-math-element')) {
     if (!options.renderMath) {
@@ -116,8 +128,13 @@ function InfoboxCard({ title, rows }: { title: string; rows: { key: string; labe
       <span>Infobox</span>
       {title && <span slot="supporting-text" className="infobox-compact-title">{title}</span>}
       <div slot="items">
-        {title && <m3e-list-action><m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{title}</m3e-heading></m3e-list-action>}
-        {rows.map(row => <m3e-list-action key={row.key}><strong>{row.label}</strong><div slot="supporting-text">{row.value}</div></m3e-list-action>)}
+        <div className="infobox-facts">
+          {title && <m3e-heading level="3" variant="headline" size="medium" style={{fontFamily:'serif',padding:'8px 0'}}>{title}</m3e-heading>}
+          {rows.map(row => <div className="infobox-fact" key={row.key}>
+            <strong>{row.label}</strong>
+            <div>{row.value}</div>
+          </div>)}
+        </div>
       </div>
     </m3e-expandable-list-item>
   </m3e-action-list>;
@@ -126,13 +143,13 @@ function InfoboxCard({ title, rows }: { title: string; rows: { key: string; labe
 function ArticleSection({ title, headingId, initiallyExpanded, children }: { title: string; headingId?: string; initiallyExpanded: boolean; children: ReactNode }) {
   const [expanded, setExpanded] = useState(initiallyExpanded);
   useEffect(() => setExpanded(initiallyExpanded), [initiallyExpanded, title]);
-  return <m3e-expansion-panel className="article-section" open={expanded} onToggle={(event) => setExpanded((event.currentTarget as HTMLElement & { open: boolean }).open)} style={{ '--m3e-expansion-panel-container-color': 'var(--md-sys-color-surface-container-low)', '--m3e-expansion-panel-content-padding': '0 16px 16px' } as React.CSSProperties}>
+  return <m3e-expansion-panel className="article-section" toggle-position="before" toggle-direction="vertical" open={expanded} onToggle={(event) => setExpanded((event.currentTarget as HTMLElement & { open: boolean }).open)} style={{ '--m3e-expansion-panel-container-color': 'var(--md-sys-color-surface-container-low)', '--m3e-expansion-panel-content-padding': '0 16px 16px' } as React.CSSProperties}>
     <span slot="header" id={headingId}><m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{title}</m3e-heading></span>
     {children}
   </m3e-expansion-panel>;
 }
 
-export default function ArticleRenderer({ html, lang, dataSaver, expandedSections, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, pageDescription, onLinkClick }: ArticleRendererProps) {
+export default function ArticleRenderer({ html, lang, dataSaver, expandedSections, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, onLinkClick }: ArticleRendererProps) {
   const [selectedImage, setSelectedImage] = useState<{ src: string; caption: string } | null>(null);
   const sections = useMemo(() => {
     const document = new DOMParser().parseFromString(html, 'text/html');
@@ -160,10 +177,9 @@ export default function ArticleRenderer({ html, lang, dataSaver, expandedSection
     if (current.nodes.length || current.heading) groups.push(current);
     return { lead, groups };
   }, [html]);
-  const options: RenderOptions = { lang, dataSaver, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, firstImageSkipped: Boolean(pageImageUri && !dataSaver), onLinkClick, onImageClick: (src, caption) => setSelectedImage({ src, caption }) };
+  const options: RenderOptions = { lang, dataSaver, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, firstImageSkipped: false, onLinkClick, onImageClick: (src, caption) => setSelectedImage({ src, caption }) };
   return <div className="article-content" style={{ fontFamily: fontStyle === 'serif' ? 'serif' : 'Roboto, Arial, sans-serif', fontSize: fontSize + 'px', lineHeight: 1.5, letterSpacing: '0.5px' }}>
-    {pageImageUri && !dataSaver && <m3e-card variant="filled"><img slot="header" src={pageImageUri} alt="Article lead image" loading="lazy" /></m3e-card>}
-    {pageDescription && <m3e-list-item><span slot="supporting-text">{pageDescription}</span></m3e-list-item>}
+    {pageImageUri && !dataSaver && <m3e-card variant="filled" style={{width:'100%',maxWidth:'512px',alignSelf:'center'}}><img slot="header" src={pageImageUri} alt="Article lead image" loading="lazy" decoding="async" style={{display:'block',width:'100%',height:'auto',objectFit:'contain'}} /></m3e-card>}
     {sections.lead && <section className="article-lead">{renderNode(sections.lead, 'article-lead', options)}</section>}
     {sections.groups.map((section, index) => {
       const children = section.nodes.map((node, childIndex) => renderNode(node, index + '-' + childIndex, options));

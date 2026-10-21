@@ -8,7 +8,7 @@ declare module 'react' {
       'm3e-icon-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { toggle?: boolean; selected?: boolean; title?: string; disabled?: boolean; variant?: string };
       'm3e-card': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { variant?: string; orientation?: string; actionable?: boolean; inline?: boolean };
       'm3e-fab': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { variant?: string; size?: string; disabled?: boolean; extended?: boolean; href?: string; target?: string };
-      'm3e-expansion-panel': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { open?: boolean; disabled?: boolean; 'toggle-position'?: string };
+      'm3e-expansion-panel': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { open?: boolean; disabled?: boolean; 'toggle-position'?: string; 'toggle-direction'?: string };
       'm3e-dialog': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { open?: boolean; dismissible?: boolean; 'close-label'?: string };
       'm3e-search-bar': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { clearable?: boolean };
       'm3e-search-view': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { mode?: 'fullscreen' | 'docked' | 'auto'; open?: boolean; contained?: boolean; 'clear-label'?: string; 'close-label'?: string; 'hide-search-icon'?: boolean };

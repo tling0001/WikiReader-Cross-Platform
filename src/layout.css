@@ -18,9 +18,10 @@ m3e-content-pane.app-content { display:block; width:100%; height:100%; min-width
 .reading-actions { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:1000; display:block; width:max-content; max-width:calc(100vw - 32px); transition:opacity 160ms ease, transform 160ms ease, visibility 160ms ease; }
 .reading-actions.immersive-hidden { opacity:0; visibility:hidden; pointer-events:none; transform:translate(-50%, 16px); }
 .app-search-view.immersive-hidden { display:none; }
+.app-main > m3e-app-bar.immersive-hidden, .app-main > m3e-linear-progress-indicator.immersive-hidden { display:none; }
 m3e-toolbar.reading-toolbar { position:static; transform:none; display:block; width:max-content; max-width:calc(100vw - 80px); overflow-x:auto; }
 m3e-fab.reading-search-fab { position:absolute; left:calc(100% + 16px); top:50%; transform:translateY(-50%); display:block; margin:0; }
-.screen-content { display:flex; flex-direction:column; gap:16px; box-sizing:border-box; min-width:0; padding:16px; }
+.screen-content { display:flex; flex-direction:column; gap:16px; box-sizing:border-box; min-width:0; padding:0; }
  .home-feed { display:flex; flex-direction:column; gap:24px; min-width:0; }
 .feed-section { display:flex; flex-direction:column; gap:8px; min-width:0; }
 .feed-card-content { display:flex; flex-direction:column; gap:8px; min-width:0; flex:1 1 0; width:100%; box-sizing:border-box; overflow-wrap:anywhere; }
@@ -52,6 +53,7 @@ m3e-fab.reading-search-fab { position:absolute; left:calc(100% + 16px); top:50%;
 .article-infobox m3e-list-item-button { display:block; min-width:0; }
 .article-infobox m3e-list-item strong { font-weight:700; }
 .screen-content img { max-width:100%; height:auto; object-fit:contain; }
+.screen-content img.thumbnail-square { width:var(--thumbnail-size, 64px); height:var(--thumbnail-size, 64px); aspect-ratio:1; object-fit:cover; border-radius:12px; flex-shrink:0; }
 @media (min-width: 800px) { .app-main > m3e-app-bar { position:relative; } .app-main > m3e-app-bar > .app-search-view { position:absolute; top:50%; left:50%; width:min(36vw, 420px); max-width:36vw; min-width:0; flex:none; transform:translate(-50%, -50%); } }
 @media (max-width: 799px) { .app-main > m3e-app-bar > .app-search-view { position:static; width:min(100%, 360px); max-width:100%; } }
 @media (max-width: 480px) { .reading-actions { left:16px; transform:none; } m3e-toolbar.reading-toolbar { max-width:calc(100vw - 88px); } m3e-fab.reading-search-fab { left:calc(100% + 8px); } }

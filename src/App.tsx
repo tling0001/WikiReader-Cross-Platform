@@ -133,14 +133,47 @@ export default function App() {
           title: item.titles?.canonical || item.titles?.normalized || item.title || '',
           thumbnail: item.thumbnail ?? item.originalimage, description: item.description, extract: item.extract, pageid: item.pageid, views: item.views, viewHistory: item.viewHistory
         });
+        const trending = (data.mostread?.articles ?? []).map(normalize).filter(item => item.title).slice(0, 15);
         setFeed({
           featured: data.tfa ? normalize(data.tfa) : null,
-          trending: (data.mostread?.articles ?? []).map(normalize).filter(item => item.title).slice(0, 15),
+          trending,
           image: data.image ?? null,
           news: (data.news ?? []).map(item => ({ story: item.story, links: (item.links ?? []).map(normalize).filter(link => link.title) })),
           onthisday: (data.onthisday ?? []).map(item => ({ text: item.text, year: item.year, pages: (item.pages ?? []).map(normalize).filter(page => page.title) }))
         });
         setFeedLoading(false);
+
+        // Match Android's per-article views graph with real Wikimedia pageview history.
+        const endDate = new Date();
+        endDate.setUTCDate(endDate.getUTCDate() - 1);
+        const startDate = new Date(endDate);
+        startDate.setUTCDate(startDate.getUTCDate() - 29);
+        const apiDate = (value: Date) => value.toISOString().slice(0, 10).replaceAll('-', '');
+        const start = apiDate(startDate);
+        const end = apiDate(endDate);
+        void Promise.all(trending.map(async item => {
+          try {
+            const encodedTitle = encodeURIComponent(item.title.replaceAll(' ', '_'));
+            const history = await api<{ items?: { views?: number }[] }>(
+              'https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/' +
+              lang + '.wikipedia.org/all-access/user/' + encodedTitle + '/daily/' + start + '/' + end
+            );
+            const points = history.items ?? [];
+            return [item.title, points.length ? points.map(point => ({ views: point.views ?? 0 })) : item.viewHistory] as const;
+          } catch {
+            return [item.title, item.viewHistory] as const;
+          }
+        })).then(histories => {
+          if (!active) return;
+          const byTitle = new Map(histories);
+          setFeed(current => ({
+            ...current,
+            trending: current.trending.map(item => ({
+              ...item,
+              viewHistory: byTitle.get(item.title) ?? item.viewHistory
+            }))
+          }));
+        });
       })
       .catch(() => { if (active) { setFeed({ featured: null, trending: [], image: null, news: [], onthisday: [] }); setFeedLoading(false); } });
     return () => { active = false; };
@@ -298,7 +331,7 @@ export default function App() {
   const returnFromSettings = () => { setSearchOpen(false); setSection('home'); setShowNavigation(false); setListFilter(''); };
   const navigationItems = <>
     <m3e-nav-item selected={section === 'home'} onClick={() => goToSection('home')}><m3e-icon slot="icon" variant="rounded" name="home" filled={section === 'home'} />Home</m3e-nav-item>
-    <m3e-nav-item selected={section === 'saved'} onClick={() => goToSection('saved')}><m3e-icon slot="icon" variant="rounded" name={section === 'saved' ? 'download_done' : 'download'} filled={section === 'saved'} />Saved</m3e-nav-item>
+    <m3e-nav-item selected={section === 'saved'} onClick={() => goToSection('saved')}><m3e-icon slot="icon" variant="rounded" name="download_done" filled={section === 'saved'} />Saved</m3e-nav-item>
     {prefs.browsingHistory && <m3e-nav-item selected={section === 'history'} onClick={() => goToSection('history')}><m3e-icon slot="icon" variant="rounded" name="history" filled={section === 'history'} />History</m3e-nav-item>}
     <m3e-nav-item selected={section === 'settings'} onClick={() => goToSection('settings')}><m3e-icon slot="icon" variant="rounded" name="settings" filled={section === 'settings'} />Settings</m3e-nav-item>
     <m3e-nav-item selected={section === 'about'} onClick={() => goToSection('about')}><m3e-icon slot="icon" variant="rounded" name="info" filled={section === 'about'} />About</m3e-nav-item>
@@ -315,7 +348,7 @@ export default function App() {
   const screenContent = <div className="screen-content">
     {error && <m3e-card variant="filled"><m3e-list slot="content" variant="standard"><m3e-list-item><m3e-icon variant="rounded" slot="leading" name="error" />{error}<m3e-button slot="trailing" variant="text" onClick={() => setError('')}>Dismiss</m3e-button></m3e-list-item></m3e-list></m3e-card>}
     {section === 'home' && (article ? <ArticleScreen article={article} html={articleHtml} loading={loading} saved={isSaved} onBack={back} onSave={toggleSaved} fontSize={prefs.fontSize} dataSaver={prefs.dataSaver} expandedSections={prefs.expandedSections} fontStyle={prefs.fontStyle} imageBackground={prefs.imageBackground} renderMath={prefs.renderMath} languages={articleLanguages} onChooseLanguage={(targetLang, targetTitle) => { update('lang', targetLang); void openArticle(targetTitle, true, targetLang); }} /> : <HomeScreen feed={feed} loading={feedLoading} onOpen={title => void openArticle(title)} onRandom={randomArticle} enabled={prefs.feedEnabled && !prefs.dataSaver} wide={wide} expanded={expandedLayout} />)}
-    {section === 'history' && <LibraryScreen title="Reading history" entries={filteredHistory} total={history.length} emptyTitle="No reading history" emptyText="Articles you read will appear here." filter={listFilter} setFilter={setListFilter} onOpen={entry => void openArticle(entry.title, true, entry.lang)} onClear={() => setHistory([])} onRemove={entry => setHistory(previous => previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)))} clearLabel="Clear history" />}
+    {section === 'history' && <HistoryScreen entries={filteredHistory} total={history.length} onOpen={entry => void openArticle(entry.title, true, entry.lang)} />}
     {section === 'saved' && <LibraryScreen title="Saved articles" entries={filteredSaved} total={saved.length} emptyTitle="No saved articles" emptyText="Articles you save will appear here." filter={listFilter} setFilter={setListFilter} onOpen={entry => void openArticle(entry.title, true, entry.lang)} onClear={() => setSaved([])} onRemove={entry => setSaved(previous => previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)))} clearLabel="Remove all" />}
     {section === 'settings' && <SettingsScreen prefs={prefs} update={update} languageFilter={languageFilter} setLanguageFilter={setLanguageFilter} onClearData={() => { setHistory([]); setSaved([]); setSearchHistory([]); writeStore(cacheKey, {}); }} onReset={() => { setPrefs({ ...defaults }); setLanguageFilter(''); }} />}
     {section === 'about' && <AboutScreen />}
@@ -333,13 +366,13 @@ export default function App() {
         {navigationItems}
       </m3e-nav-rail>}
       <div className="app-main">
-        <m3e-app-bar centered>
+        <m3e-app-bar centered className={prefs.immersiveMode && immersiveHidden && section === 'home' ? 'immersive-hidden' : ''}>
           {section !== 'home'
             ? <m3e-icon-button slot="leading-icon" variant="tonal" title="Back" aria-label="Back" onClick={() => section === 'settings' ? returnFromSettings() : goToSection('home')}><m3e-icon variant="rounded" name="arrow_back" filled /></m3e-icon-button>
             : wide
               ? <m3e-icon-button slot="leading-icon" title="Search Wikipedia" aria-label="Search Wikipedia" onClick={focusSearch}><m3e-icon variant="rounded" name="search" /></m3e-icon-button>
               : <m3e-icon-button slot="leading-icon" title="Open navigation" onClick={() => setShowNavigation(true)}><m3e-icon variant="rounded" name="menu" /></m3e-icon-button>}
-          {section === 'home' ? <m3e-search-view ref={searchViewRef} className={'app-search-view' + (prefs.immersiveMode && immersiveHidden ? ' immersive-hidden' : '')} slot="title" mode="fullscreen" open={searchOpen} clear-label="Clear search" close-label="Close search" style={{ width: '100%', minWidth: 0, flex: '1 1 auto' }}>
+          {section === 'history' ? null : section === 'home' ? <m3e-search-view ref={searchViewRef} className={'app-search-view' + (prefs.immersiveMode && immersiveHidden ? ' immersive-hidden' : '')} slot="title" mode="fullscreen" open={searchOpen} clear-label="Clear search" close-label="Close search" style={{ width: '100%', minWidth: 0, flex: '1 1 auto' }}>
             <input slot="input" aria-label="Search Wikipedia" placeholder="Search Wikipedia" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') doSearch(); }} />
             {searchActive ? <m3e-list variant="segmented">
               <m3e-list-item><span slot="overline">Wikipedia search</span><span>Results for “{query.trim()}”</span><m3e-button slot="trailing" variant="filled" onClick={doSearch}>Open article</m3e-button></m3e-list-item>
@@ -351,9 +384,9 @@ export default function App() {
               {searchHistory.slice(0, 8).map(item => <m3e-list-item-button key={item} onClick={() => { setQuery(item); setSearchOpen(true); }}><m3e-icon slot="leading" variant="rounded" name="history" /><span>{item}</span><m3e-icon slot="trailing" variant="rounded" name="north_west" /></m3e-list-item-button>)}
             </m3e-list> : null}
           </m3e-search-view> : <span slot="title">{titleBySection[section]}</span>}
-          {section === 'settings' ? <m3e-icon-button slot="trailing" title="Reset settings" onClick={() => window.dispatchEvent(new Event('wikireader:reset-settings'))}><m3e-icon variant="rounded" name="refresh" /></m3e-icon-button> : section === 'home' ? <m3e-icon-button slot="trailing" variant="tonal" title="Random article" onClick={() => void randomArticle()}><m3e-icon variant="rounded" name="shuffle" filled /></m3e-icon-button> : null}
+          {section === 'history' ? <m3e-icon-button slot="trailing" title="Clear history" aria-label="Clear history" disabled={history.length === 0} onClick={() => setHistory([])}><m3e-icon variant="rounded" name="delete" /></m3e-icon-button> : section === 'settings' ? <m3e-icon-button slot="trailing" title="Reset settings" onClick={() => window.dispatchEvent(new Event('wikireader:reset-settings'))}><m3e-icon variant="rounded" name="refresh" /></m3e-icon-button> : section === 'home' ? <m3e-icon-button slot="trailing" variant="tonal" title="Random article" onClick={() => void randomArticle()}><m3e-icon variant="rounded" name="shuffle" filled /></m3e-icon-button> : null}
         </m3e-app-bar>
-        {loading && <m3e-linear-progress-indicator mode={articleProgress === null ? 'indeterminate' : 'determinate'} value={articleProgress ?? undefined} max={1} />}
+        {loading && <m3e-linear-progress-indicator className={prefs.immersiveMode && immersiveHidden && section === 'home' ? 'immersive-hidden' : ''} mode={articleProgress === null ? 'indeterminate' : 'determinate'} value={articleProgress ?? undefined} max={1} />}
         <m3e-content-pane className="app-content" style={{ '--m3e-content-pane-container-color': 'var(--md-sys-color-surface-container-low)', color: 'var(--md-sys-color-on-surface)' } as React.CSSProperties}>{screenContent}</m3e-content-pane>
       </div>
     </div>
@@ -370,6 +403,18 @@ export default function App() {
   </m3e-theme>;
 }
  
+function ViewsSparkline({ values }: { values: number[] }) {
+  if (values.length < 2) return null;
+  const min = Math.min(...values), max = Math.max(...values), range = Math.max(1, max - min);
+  const points = values.map((value, index) => ({x:2 + index * 92 / (values.length - 1), y:28 - ((value - min) / range) * 24}));
+  const path = points.reduce((result, point, index) => {
+    if (index === 0) return 'M ' + point.x + ' ' + point.y;
+    const previous = points[index - 1], midpoint = (previous.x + point.x) / 2;
+    return result + ' C ' + midpoint + ' ' + previous.y + ', ' + midpoint + ' ' + point.y + ', ' + point.x + ' ' + point.y;
+  }, '');
+  return <svg width="96" height="32" viewBox="0 0 96 32" role="img" aria-label="Article views over time"><path d={path} fill="none" stroke="var(--md-sys-color-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
 function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide, expanded }: { feed: { featured: Page | null; trending: Page[]; image: FeedImage | null; news: FeedNews[]; onthisday: FeedOnThisDay[] }; loading: boolean; onOpen: (title: string) => void; onRandom: () => void; enabled: boolean; wide: boolean; expanded: boolean }) {
   const [trendingPage, setTrendingPage] = useState(0);
   useEffect(() => setTrendingPage(0), [feed.trending.length, feed.featured?.title]);
@@ -380,9 +425,9 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide, expanded }
     {!enabled && <m3e-card variant="filled"><m3e-list slot="content" variant="segmented"><m3e-list-item>Article feed is disabled in Settings.</m3e-list-item></m3e-list></m3e-card>}
     {loading && enabled && <m3e-list variant="segmented"><m3e-list-item><m3e-circular-progress-indicator indeterminate />Loading today's articles…</m3e-list-item></m3e-list>}
     {enabled && feed.featured && <section className="feed-section">
-      <m3e-heading level="2" variant="headline" size="medium">Featured article</m3e-heading>
-      <m3e-heading level="6" variant="label" size="medium">{today}</m3e-heading>
-      <m3e-card variant="filled" actionable orientation={expanded ? 'horizontal' : 'vertical'} onClick={() => onOpen(feed.featured?.title || '')} style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container)' } as React.CSSProperties}>
+      <m3e-heading level="2" variant="headline" size="medium" style={{padding:'16px 16px 0'}}>Featured article</m3e-heading>
+      <m3e-heading level="6" variant="label" size="medium" style={{padding:'0 16px'}}>{today}</m3e-heading>
+      <m3e-card variant="filled" actionable orientation={expanded ? 'horizontal' : 'vertical'} onClick={() => onOpen(feed.featured?.title || '')} style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container)', width:'calc(100% - 32px)', margin:'8px 16px' } as React.CSSProperties}>
         {feed.featured.thumbnail?.source && <img slot="header" src={feed.featured.thumbnail.source} alt={feed.featured.title} width={feed.featured.thumbnail.width} height={feed.featured.thumbnail.height} loading="lazy" />}
         <div slot="content" className="feed-card-content">
           <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{feed.featured.title}</m3e-heading>
@@ -392,21 +437,29 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide, expanded }
       </m3e-card>
     </section>}
     {enabled && feed.trending.length > 0 && <section className="feed-section">
-      <m3e-heading level="3" variant="title" size="large">Trending articles</m3e-heading>
-      <m3e-heading level="6" variant="label" size="medium">Top articles of the day</m3e-heading>
-      <m3e-list variant="segmented">
-        {visible.map((item, index) => <m3e-list-item-button key={item.pageid ?? item.title} onClick={() => onOpen(item.title)}>
-          {item.thumbnail?.source && <img slot="leading" src={item.thumbnail.source} alt="" width="80" height="80" loading="lazy" />}
-          <span slot="overline">{trendingPage * 5 + index + 1}</span>
+      <m3e-heading level="3" variant="title" size="large" style={{padding:'24px 16px 0'}}>Trending articles</m3e-heading>
+      <m3e-heading level="6" variant="label" size="medium" style={{padding:'0 16px'}}>Top articles of the day</m3e-heading>
+      <m3e-list variant="segmented" style={{margin:'0 16px'}}>
+        {visible.map(item => <m3e-list-item-button key={item.pageid ?? item.title} onClick={() => onOpen(item.title)}>
           <span>{item.title}</span>
-          <span slot="supporting-text">{item.description || item.extract || ''}{item.views ? ' · ' + new Intl.NumberFormat(undefined,{notation:'compact'}).format(item.views) + ' views today' : ''}</span>
-          <m3e-icon variant="rounded" slot="trailing" name="chevron_right" />
+          <div slot="supporting-text" style={{display:'flex',flexDirection:'column',gap:'4px',minWidth:0}}>
+            <span>{item.description || item.extract || ''}</span>
+            <div style={{display:'flex',alignItems:'center',gap:'8px',minWidth:0}}>
+              {item.viewHistory && item.viewHistory.length > 1 && <ViewsSparkline values={item.viewHistory.map(point=>point.views ?? 0)} />}
+              <span>{item.views ? new Intl.NumberFormat(undefined,{notation:'compact'}).format(item.views) + ' views today' : ''}</span>
+            </div>
+          </div>
+          {item.thumbnail?.source && <img className="thumbnail-square" style={{'--thumbnail-size':'80px'} as React.CSSProperties} slot="trailing" src={item.thumbnail.source} alt="" width="80" height="80" loading="lazy" />}
         </m3e-list-item-button>)}
-        {pages > 1 && <m3e-list-item><span slot="supporting-text">Page {trendingPage+1} of {pages}</span><m3e-button-group slot="trailing" variant="connected"><m3e-button variant="tonal" shape="square" disabled={trendingPage===0} onClick={()=>setTrendingPage(v=>Math.max(0,v-1))}>Previous</m3e-button><m3e-button variant="tonal" shape="square" disabled={trendingPage===pages-1} onClick={()=>setTrendingPage(v=>Math.min(pages-1,v+1))}>Next</m3e-button></m3e-button-group></m3e-list-item>}
       </m3e-list>
+      {pages > 1 && <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',padding:'8px 16px'}}>
+        <m3e-icon-button title="Previous trending page" aria-label="Previous trending page" disabled={trendingPage===0} onClick={()=>setTrendingPage(v=>Math.max(0,v-1))}><m3e-icon variant="rounded" name="keyboard_arrow_left" /></m3e-icon-button>
+        <span>Page {trendingPage+1} of {pages}</span>
+        <m3e-icon-button title="Next trending page" aria-label="Next trending page" disabled={trendingPage===pages-1} onClick={()=>setTrendingPage(v=>Math.min(pages-1,v+1))}><m3e-icon variant="rounded" name="keyboard_arrow_right" /></m3e-icon-button>
+      </div>}
     </section>}
     {enabled && (feed.image?.thumbnail?.source || feed.image?.image?.source) && <section className="feed-section">
-      <m3e-heading level="3" variant="title" size="large">Picture of the day</m3e-heading>
+      <m3e-heading level="3" variant="title" size="large" style={{padding:'24px 16px 0'}}>Picture of the day</m3e-heading>
       <m3e-card variant="filled">
         <img slot="header" src={(feed.image.thumbnail || feed.image.image)?.source} alt={feed.image.description?.text || feed.image.title || 'Picture of the day'} width={(feed.image.thumbnail || feed.image.image)?.width} height={(feed.image.thumbnail || feed.image.image)?.height} loading="lazy" />
         <div slot="content" className="feed-card-content">
@@ -416,7 +469,7 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide, expanded }
       </m3e-card>
     </section>}
     {enabled && feed.news.length > 0 && <section className="feed-section">
-      <m3e-heading level="3" variant="title" size="large">In the news</m3e-heading>
+      <m3e-heading level="3" variant="title" size="large" style={{padding:'24px 16px 0'}}>In the news</m3e-heading>
       {feed.news.map((item,index)=><m3e-card key={index} variant="filled">
         {item.links?.find(link=>link.thumbnail?.source)?.thumbnail?.source && <img slot="header" src={item.links.find(link=>link.thumbnail?.source)?.thumbnail?.source} alt="" loading="lazy" />}
         <m3e-list slot="content" variant="segmented">
@@ -426,7 +479,7 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide, expanded }
       </m3e-card>)}
     </section>}
     {enabled && feed.onthisday.length > 0 && <section className="feed-section">
-      <m3e-heading level="3" variant="title" size="large">On this day</m3e-heading>
+      <m3e-heading level="3" variant="title" size="large" style={{padding:'24px 16px 0'}}>On this day</m3e-heading>
       <m3e-list variant="segmented">
         {feed.onthisday.map((item,index)=><m3e-list-item key={index}>
           <span slot="overline">{item.year ?? ''}</span><span>{item.text || 'Historical event'}</span>
@@ -476,14 +529,44 @@ function ArticleScreen({ article, html, loading, saved, onBack, onSave, fontSize
     return Array.from(doc.querySelectorAll('h2,h3')).map((heading, index) => ({ id: heading.id || 'heading-' + index, text: heading.textContent?.replace('[edit]', '').trim() || '' })).filter(item => item.text);
   }, [html]);
   return <>
-    <m3e-heading level="1" variant="display" size="small" style={{ fontFamily: 'serif' }}>{article.title}</m3e-heading>
+    <m3e-heading level="1" variant="display" size="small" style={{ fontFamily: 'serif', padding: '16px 16px 0' }}>{article.title}</m3e-heading>
+    {article.description && <p style={{margin:'4px 16px 16px',color:'var(--md-sys-color-on-surface-variant)',fontFamily:'serif',fontSize:'1rem'}}>{article.description}</p>}
     {showLanguages && <m3e-card variant="filled"><m3e-list slot="content" variant="standard"><m3e-list-item>Available article languages</m3e-list-item><m3e-list-item><m3e-search-bar clearable><m3e-icon slot="leading" variant="rounded" name="search"/><input slot="input" aria-label="Search article languages" placeholder="Find language or title" value={languageQuery} onChange={event=>setLanguageQuery(event.target.value)}/></m3e-search-bar></m3e-list-item>{languages.filter(x=>(x.name+' '+x.lang+' '+x.title).toLowerCase().includes(languageQuery.toLowerCase())).map(x=><m3e-list-item-button key={x.lang} selected={x.lang===article.lang} onClick={()=>{setShowLanguages(false);setLanguageQuery('');onChooseLanguage(x.lang,x.title);}}><m3e-icon slot="leading" variant="rounded" name={x.lang===article.lang?'check_circle':'language'}/><span>{x.name||x.lang}</span><span slot="supporting-text">{x.title} · {x.lang}</span></m3e-list-item-button>)}</m3e-list></m3e-card>}
 
     {loading&&<m3e-list-item><m3e-circular-progress-indicator indeterminate/>Loading full article…</m3e-list-item>}
-    {html&&<ArticleRenderer html={html} lang={article.lang||'en'} dataSaver={dataSaver} expandedSections={expandedSections} fontSize={fontSize} fontStyle={fontStyle} imageBackground={imageBackground} renderMath={renderMath} pageImageUri={article.thumbnail?.source} pageDescription={article.description} onLinkClick={title=>{const target=title.trim();if(target)window.dispatchEvent(new CustomEvent('wikireader:open-article',{detail:{title:target,lang:article.lang||'en'}}));}}/>}
+    {html&&<ArticleRenderer html={html} lang={article.lang||'en'} dataSaver={dataSaver} expandedSections={expandedSections} fontSize={fontSize} fontStyle={fontStyle} imageBackground={imageBackground} renderMath={renderMath} pageImageUri={article.thumbnail?.source} onLinkClick={title=>{const target=title.trim();if(target)window.dispatchEvent(new CustomEvent('wikireader:open-article',{detail:{title:target,lang:article.lang||'en'}}));}}/>}
     {!loading&&!html&&<m3e-list-item>The full article could not be loaded. A cached copy may be available when you reconnect.</m3e-list-item>}
-    <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="check_circle"/>End of article<m3e-button slot="trailing" variant="text" onClick={onBack}>Keep exploring</m3e-button></m3e-list-item>
   </>;
+}
+
+function HistoryScreen({ entries, total, onOpen }: { entries: Entry[]; total: number; onOpen: (entry: Entry) => void }) {
+  const groups = useMemo(() => {
+    const grouped = new Map<string, Entry[]>();
+    for (const entry of entries) {
+      const date = new Date(entry.visited).toLocaleDateString(undefined, { dateStyle: 'long' });
+      const items = grouped.get(date) || [];
+      items.push(entry);
+      grouped.set(date, items);
+    }
+    return Array.from(grouped.entries());
+  }, [entries]);
+  return <div style={{display:'flex',flexDirection:'column',gap:'8px',minWidth:0}}>
+    <m3e-heading level="1" variant="display" size="small" style={{padding:'8px 16px 0'}}>History</m3e-heading>
+    {entries.length === 0
+      ? <m3e-list variant="segmented" style={{margin:'0 16px'}}><m3e-list-item><m3e-icon slot="leading" variant="rounded" name="history" /><span>{total === 0 ? 'No reading history' : 'No matching articles'}</span><span slot="supporting-text">{total === 0 ? 'Articles you read will appear here.' : 'Try a different search term.'}</span></m3e-list-item></m3e-list>
+      : groups.map(([date, items]) => <section key={date} style={{display:'flex',flexDirection:'column',gap:'2px',minWidth:0}}>
+          <m3e-heading level="6" variant="title" size="small" style={{padding:'14px 32px 8px'}}>{date}</m3e-heading>
+          <m3e-list variant="segmented" style={{margin:'0 16px'}}>
+            {items.map(entry => <m3e-list-item-button key={entry.lang + ':' + entry.title + ':' + entry.visited} onClick={() => onOpen(entry)}>
+              {entry.thumbnail && <img className="thumbnail-square" slot="leading" src={entry.thumbnail} alt="" width="64" height="64" loading="lazy" />}
+              <span>{entry.title}</span>
+              {entry.description && <span slot="supporting-text">{entry.description}</span>}
+              <span slot="trailing">{new Date(entry.visited).toLocaleTimeString(undefined, {hour:'numeric',minute:'2-digit'})}</span>
+            </m3e-list-item-button>)}
+          </m3e-list>
+        </section>)
+    }
+  </div>;
 }
 
 function LibraryScreen({ title, entries, total, emptyTitle, emptyText, filter, setFilter, onOpen, onClear, onRemove, clearLabel }: { title: string; entries: Entry[]; total: number; emptyTitle: string; emptyText: string; filter: string; setFilter: (value: string) => void; onOpen: (entry: Entry) => void; onClear: () => void; onRemove: (entry: Entry) => void; clearLabel: string }) {
@@ -492,7 +575,7 @@ function LibraryScreen({ title, entries, total, emptyTitle, emptyText, filter, s
     {total > 0 && <m3e-list-item><m3e-search-bar clearable><m3e-icon variant="rounded" slot="leading" name="search" /><input slot="input" aria-label="Filter articles" placeholder="Filter articles" value={filter} onChange={event => setFilter(event.target.value)} /></m3e-search-bar></m3e-list-item>}
     {entries.length === 0 && <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="library_books" /><span>{total ? 'No matching articles' : emptyTitle}</span><span slot="supporting-text">{total ? 'Try a different search term.' : emptyText}</span></m3e-list-item>}
     {entries.map(entry => <m3e-list-item-button key={entry.lang + ':' + entry.title} onClick={() => onOpen(entry)}>
-      {entry.thumbnail && <img slot="leading" src={entry.thumbnail} alt="" />}
+      {entry.thumbnail && <img className="thumbnail-square" slot="leading" src={entry.thumbnail} alt="" width="64" height="64" loading="lazy" />}
       <span>{entry.title}</span><span slot="supporting-text">{entry.description || entry.lang.toUpperCase() + ' Wikipedia'} · {new Date(entry.visited).toLocaleDateString()}</span>
       <m3e-icon-button slot="trailing" title="Remove article" aria-label={'Remove ' + entry.title + ' from ' + title.toLowerCase()} onClick={event => { event.stopPropagation(); onRemove(entry); }}><m3e-icon variant="rounded" name="close" /></m3e-icon-button>
     </m3e-list-item-button>)}
@@ -505,23 +588,20 @@ function SettingsScreen({ prefs, update, languageFilter, setLanguageFilter, onCl
   const themes=[['auto','System default'],['light','Light'],['dark','Dark']] as const;
   const colors=['#feb4a7','#ffb3c0','#fcaaff','#b9c3ff','#62d3ff','#44d9f1','#52dbc9','#78dd77','#9fd75c','#c1d02d','#fabd00','#ffb86e','#ffffff'];
   const switches:{key:'dataSaver'|'feedEnabled'|'expandedSections'|'imageBackground'|'immersiveMode'|'renderMath'|'browsingHistory'|'searchHistory';label:string;desc:string}[]=[
-    {key:'dataSaver',label:'Data saver',desc:'Avoid loading images to reduce data usage.'},{key:'feedEnabled',label:'Home feed',desc:'Show featured and trending articles on Home.'},{key:'expandedSections',label:'Expanded sections',desc:'Expand article sections by default.'},{key:'imageBackground',label:'Image background',desc:'Display a surface behind article images.'},{key:'immersiveMode',label:'Immersive mode',desc:'Hide the search bar and floating action buttons while scrolling.'},{key:'renderMath',label:'Render mathematical notation',desc:'Display equations in article content.'},{key:'browsingHistory',label:'Browsing history',desc:'Remember articles you open.'},{key:'searchHistory',label:'Search history',desc:'Keep recent search terms on this device.'}];
+    {key:'dataSaver',label:'Data saver',desc:'Avoid loading images to reduce data usage.'},{key:'feedEnabled',label:'Home feed',desc:'Show featured and trending articles on Home.'},{key:'expandedSections',label:'Expanded sections',desc:'Expand article sections by default.'},{key:'imageBackground',label:'Image background',desc:'Display a surface behind article images.'},{key:'immersiveMode',label:'Immersive mode',desc:'Hide the top app bar and floating action buttons while scrolling.'},{key:'renderMath',label:'Render mathematical notation',desc:'Display equations in article content.'},{key:'browsingHistory',label:'Browsing history',desc:'Remember articles you open.'},{key:'searchHistory',label:'Search history',desc:'Keep recent search terms on this device.'}];
   return <>
     <m3e-list variant="segmented">
-      <m3e-list-item><span slot="overline">Personalization</span><span>Appearance and reading</span></m3e-list-item>
       <m3e-list-item-button onClick={()=>setColorsOpen(true)}><m3e-icon slot="leading" variant="rounded" name="palette"/><span>Color scheme</span><span slot="supporting-text">{prefs.colorScheme}</span><m3e-icon slot="trailing" variant="rounded" name="chevron_right"/></m3e-list-item-button>
       <m3e-list-item-button onClick={()=>setThemeOpen(true)}><m3e-icon slot="leading" variant="rounded" name="brightness_6"/><span>Theme</span><span slot="supporting-text">{themes.find(x=>x[0]===prefs.theme)?.[1]}</span><m3e-icon slot="trailing" variant="rounded" name="chevron_right"/></m3e-list-item-button>
       <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="brightness_6"/><span>Black theme</span><span slot="supporting-text">Use a pure black dark theme.</span><m3e-switch slot="trailing" checked={prefs.blackTheme} onChange={()=>update('blackTheme',!prefs.blackTheme)}/></m3e-list-item>
     </m3e-list>
     <m3e-list variant="segmented">
-      <m3e-list-item><span slot="overline">Reading</span><span>Language and typography</span></m3e-list-item>
       <m3e-list-item-button onClick={()=>setLanguageOpen(true)}><m3e-icon slot="leading" variant="rounded" name="translate"/><span>Wikipedia language</span><span slot="supporting-text">{languages.find(x=>x[0]===prefs.lang)?.[1] || prefs.lang} ({prefs.lang})</span><m3e-icon slot="trailing" variant="rounded" name="chevron_right"/></m3e-list-item-button>
       <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="text_fields"/><span>Font style</span><m3e-button-group slot="trailing" variant="connected"><m3e-button variant="tonal" shape="square" toggle aria-pressed={prefs.fontStyle==='sans'} onClick={()=>update('fontStyle','sans')}>Sans-serif</m3e-button><m3e-button variant="tonal" shape="square" toggle aria-pressed={prefs.fontStyle==='serif'} onClick={()=>update('fontStyle','serif')}>Serif</m3e-button></m3e-button-group></m3e-list-item>
       <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="format_size"/><span>Article font size</span><span slot="supporting-text">{prefs.fontSize} sp</span></m3e-list-item>
       <m3e-list-item><m3e-slider min={10} max={22} step={1} discrete labelled onInput={event=>{const thumb=(event.currentTarget as HTMLElement).querySelector<HTMLElement & {value?:number}>('m3e-slider-thumb');const value=Number(thumb?.value ?? thumb?.getAttribute('value') ?? prefs.fontSize);if(Number.isFinite(value))update('fontSize',Math.max(10,Math.min(22,Math.round(value))));}}><m3e-slider-thumb value={prefs.fontSize}/></m3e-slider></m3e-list-item>
       </m3e-list>
       <m3e-list variant="segmented">
-      <m3e-list-item><span slot="overline">Behavior</span><span>Reading and privacy</span></m3e-list-item>
       {switches.map(item=><m3e-list-item key={item.key}><m3e-icon slot="leading" variant="rounded" name="tune"/><span>{item.label}</span><span slot="supporting-text">{item.desc}</span><m3e-switch slot="trailing" checked={Boolean(prefs[item.key])} disabled={item.key==='feedEnabled'&&prefs.dataSaver} onChange={()=>update(item.key,!prefs[item.key] as Preferences[typeof item.key])}/></m3e-list-item>)}
       <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="delete"/><span>Local data</span><span slot="supporting-text">Clear saved articles, history, searches, and cached pages from this device.</span><m3e-button slot="trailing" variant="filled" onClick={()=>setClearOpen(true)}>Clear data</m3e-button></m3e-list-item>
     </m3e-list>
