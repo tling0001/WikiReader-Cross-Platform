@@ -159,7 +159,19 @@ export default function ArticleRenderer({ html, lang, dataSaver, expandedSection
     // which can also contain the opening paragraphs of the article.
     const lead = body.querySelector<HTMLElement>('table.infobox') || body.querySelector<HTMLElement>('.infobox');
     lead?.remove();
-    const nodes = Array.from(body.children).filter(element => !['SCRIPT','STYLE','NAV'].includes(element.tagName) && !element.classList.contains('mw-jump-link')) as HTMLElement[];
+    const sourceNodes = Array.from(body.children).filter(element => !['SCRIPT','STYLE','NAV'].includes(element.tagName) && !element.classList.contains('mw-jump-link')) as HTMLElement[];
+    // Android intentionally hides these end-matter sections in article reading.
+    const hiddenSectionTitles = new Set(['external links', 'footnotes', 'bibliography', 'notes', 'reference notes']);
+    const nodes: HTMLElement[] = [];
+    let omitSection = false;
+    for (const element of sourceNodes) {
+      const sectionHeading = element.tagName === 'H2' ? element : element.querySelector<HTMLElement>(':scope > h2');
+      if (sectionHeading) {
+        const headingText = (sectionHeading.textContent || '').replace('[edit]', '').trim().toLowerCase();
+        omitSection = hiddenSectionTitles.has(headingText);
+      }
+      if (!omitSection) nodes.push(element);
+    }
     const groups: { heading: HTMLElement | null; nodes: HTMLElement[] }[] = [];
     let current: { heading: HTMLElement | null; nodes: HTMLElement[] } = { heading: null, nodes: [] };
     for (const element of nodes) {

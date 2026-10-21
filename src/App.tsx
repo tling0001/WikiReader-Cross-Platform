@@ -16,6 +16,7 @@ declare module 'react' {
 import ArticleRenderer from './ArticleRenderer';
 
 type Page = { title: string; description?: string; extract?: string; thumbnail?: { source: string; width?: number; height?: number }; pageid?: number; lang?: string; views?: number; viewHistory?: { views?: number }[] };
+type SearchResult = { title: string; pageid?: number; snippet: string; titleSnippet: string; redirectTitle?: string; thumbnail?: { source: string; width?: number; height?: number } };
 type FeedImage = { title?: string; thumbnail?: { source: string; width?: number; height?: number }; image?: { source: string; width?: number; height?: number }; description?: { text?: string }; artist?: { name?: string; text?: string }; credit?: { text?: string }; file_page?: string };
 type FeedNews = { story?: string; links?: Page[] };
 type FeedOnThisDay = { text?: string; year?: number; pages?: Page[] };
@@ -55,6 +56,19 @@ const readArticleResponse = async (response: Response, onProgress: (progress: nu
 };
 const languages = [['en','English'],['es','Español'],['fr','Français'],['de','Deutsch'],['it','Italiano'],['pt','Português'],['ja','日本語'],['zh','中文'],['ru','Русский'],['ar','العربية'],['hi','हिन्दी'],['ko','한국어'],['nl','Nederlands'],['pl','Polski'],['sv','Svenska'],['uk','Українська'],['fa','فارسی'],['tr','Türkçe'],['vi','Tiếng Việt'],['id','Bahasa Indonesia']] as const;
 
+function renderSearchSnippet(html: string, prefix: string): React.ReactNode {
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const renderNode = (node: Node, key: string): React.ReactNode => {
+    if (node.nodeType === Node.TEXT_NODE) return node.nodeValue;
+    if (!(node instanceof HTMLElement)) return null;
+    const children = Array.from(node.childNodes).map((child, index) => renderNode(child, key + '-' + index));
+    return node.classList.contains('searchmatch')
+      ? <strong key={key}>{children}</strong>
+      : <React.Fragment key={key}>{children}</React.Fragment>;
+  };
+  return Array.from(parsed.body.childNodes).map((node, index) => renderNode(node, prefix + '-' + index));
+}
+
 export default function App() {
   const [section, setSection] = useState<Section>('home');
   const [prefs, setPrefs] = useState<Preferences>(() => ({ ...defaults, ...readStore<Partial<Preferences>>('wr-preferences', {}) }));
@@ -67,6 +81,7 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchViewRef = useRef<(HTMLElement & { open: boolean }) | null>(null);
   const [suggestions, setSuggestions] = useState<Page[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [feed, setFeed] = useState<{ featured: Page | null; trending: Page[]; image: FeedImage | null; news: FeedNews[]; onthisday: FeedOnThisDay[] }>({ featured: null, trending: [], image: null, news: [], onthisday: [] });
   const [feedLoading, setFeedLoading] = useState(true);
@@ -130,7 +145,7 @@ export default function App() {
       .then(data => {
         if (!active) return;
         const normalize = (item: { title?: string; titles?: { canonical?: string; normalized?: string }; thumbnail?: Page['thumbnail']; originalimage?: Page['thumbnail']; description?: string; extract?: string; pageid?: number; views?: number; viewHistory?: { views?: number }[] }): Page => ({
-          title: item.titles?.canonical || item.titles?.normalized || item.title || '',
+          title: (item.titles?.canonical || item.titles?.normalized || item.title || '').replaceAll('_', ' '),
           thumbnail: item.thumbnail ?? item.originalimage, description: item.description, extract: item.extract, pageid: item.pageid, views: item.views, viewHistory: item.viewHistory
         });
         const trending = (data.mostread?.articles ?? []).map(normalize).filter(item => item.title).slice(0, 15);
@@ -181,14 +196,30 @@ export default function App() {
 
   useEffect(() => {
     const term = query.trim();
-    if (term.length < 2) { setSuggestions([]); setSearching(false); return; }
+    if (term.length < 2) { setSuggestions([]); setSearchResults([]); setSearching(false); return; }
     let active = true;
     const timer = window.setTimeout(async () => {
       setSearching(true);
       try {
-        const data = await api<{ query?: { pages?: { title: string; pageid: number; thumbnail?: { source: string }; terms?: { description?: string[] } }[] } }>('https://' + lang + '.wikipedia.org/w/api.php?action=query&generator=prefixsearch&gpssearch=' + encodeURIComponent(term) + '&gpslimit=8&prop=pageimages%7Cpageterms&piprop=thumbnail&pithumbsize=100&wbptterms=description&format=json&formatversion=2&origin=*');
-        if (active) setSuggestions((data.query?.pages ?? []).map(page => ({ title: page.title, pageid: page.pageid, thumbnail: page.thumbnail, description: page.terms?.description?.[0] })));
-      } catch { if (active) setSuggestions([]); } finally { if (active) setSearching(false); }
+        const [prefixData, matchData] = await Promise.all([
+          api<{ query?: { pages?: { title: string; pageid: number; thumbnail?: { source: string; width?: number; height?: number }; terms?: { description?: string[] } }[] } }>('https://' + lang + '.wikipedia.org/w/api.php?action=query&generator=prefixsearch&gpssearch=' + encodeURIComponent(term) + '&gpslimit=8&prop=pageimages%7Cpageterms&piprop=thumbnail&pithumbsize=100&wbptterms=description&format=json&formatversion=2&origin=*'),
+          api<{ query?: { search?: { title: string; pageid: number; snippet?: string; titlesnippet?: string; redirecttitle?: string }[] } }>('https://' + lang + '.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(term) + '&srnamespace=0&srlimit=8&srprop=snippet%7Ctitlesnippet%7Credirecttitle&format=json&formatversion=2&origin=*')
+        ]);
+        if (active) {
+          const prefixPages = (prefixData.query?.pages ?? []).map(page => ({ title: page.title.replaceAll('_', ' '), pageid: page.pageid, thumbnail: page.thumbnail, description: page.terms?.description?.[0] }));
+          setSuggestions(prefixPages);
+          const thumbnails = new Map(prefixPages.map(page => [page.title.toLowerCase(), page.thumbnail]));
+          setSearchResults((matchData.query?.search ?? []).map(item => ({
+            title: item.title.replaceAll('_', ' '),
+            pageid: item.pageid,
+            snippet: item.snippet ?? '',
+            titleSnippet: item.titlesnippet || item.title,
+            redirectTitle: item.redirecttitle?.replaceAll('_', ' '),
+            thumbnail: thumbnails.get(item.title.replaceAll('_', ' ').toLowerCase())
+          })));
+        }
+      } catch { if (active) { setSuggestions([]); setSearchResults([]); } }
+      finally { if (active) setSearching(false); }
     }, 250);
     return () => { active = false; window.clearTimeout(timer); };
   }, [query, lang]);
@@ -242,7 +273,7 @@ export default function App() {
   }, [searchOpen]);
 
   const openArticle = useCallback(async (title: string, push = true, requestedLang = lang) => {
-    setError(''); setLoading(true); setArticleProgress(null); setSection('home'); setSearchOpen(false); setQuery(''); setSuggestions([]); setShowContents(false); setArticleLanguages([]); document.activeElement instanceof HTMLElement && document.activeElement.blur();
+    setError(''); setLoading(true); setArticleProgress(null); setSection('home'); setSearchOpen(false); setQuery(''); setSuggestions([]); setSearchResults([]); setShowContents(false); setArticleLanguages([]); document.activeElement instanceof HTMLElement && document.activeElement.blur();
     if (prefs.searchHistory && title.trim()) setSearchHistory(previous => [title.trim(), ...previous.filter(item => item.toLowerCase() !== title.trim().toLowerCase())].slice(0, 30));
     try {
       const data = await api<Page>('https://' + requestedLang + '.wikipedia.org/api/rest_v1/page/summary/' + titleToPath(title));
@@ -374,16 +405,23 @@ export default function App() {
               : <m3e-icon-button slot="leading-icon" title="Open navigation" onClick={() => setShowNavigation(true)}><m3e-icon variant="rounded" name="menu" /></m3e-icon-button>}
           {section === 'history' ? null : section === 'home' ? <m3e-search-view ref={searchViewRef} className={'app-search-view' + (prefs.immersiveMode && immersiveHidden ? ' immersive-hidden' : '')} slot="title" mode="fullscreen" open={searchOpen} clear-label="Clear search" close-label="Close search" style={{ width: '100%', minWidth: 0, flex: '1 1 auto' }}>
             <input slot="input" aria-label="Search Wikipedia" placeholder="Search Wikipedia" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') doSearch(); }} />
-            {searchActive ? <m3e-list variant="segmented">
-              <m3e-list-item><span slot="overline">Wikipedia search</span><span>Results for “{query.trim()}”</span><m3e-button slot="trailing" variant="filled" onClick={doSearch}>Open article</m3e-button></m3e-list-item>
-              {searching && <m3e-list-item><m3e-circular-progress-indicator indeterminate />Searching Wikipedia…</m3e-list-item>}
-              {suggestions.map(item => <m3e-list-item-button key={item.pageid ?? item.title} onClick={() => void openArticle(item.title)}>{item.thumbnail?.source && <img slot="leading" src={item.thumbnail.source} alt="" />}<span>{item.title}</span><span slot="supporting-text">{item.description || 'Wikipedia article'}</span><m3e-icon variant="rounded" slot="trailing" name="chevron_right" /></m3e-list-item-button>)}
-              {!searching && suggestions.length === 0 && <m3e-list-item>No matches found. You can still open “{query.trim()}”.</m3e-list-item>}
-            </m3e-list> : prefs.searchHistory && searchHistory.length > 0 ? <m3e-list variant="segmented">
+            {searchActive ? <>
+              <m3e-heading level="6" variant="label" size="large" style={{ padding: '14px 32px 8px' }}>Title matches</m3e-heading>
+              <m3e-list variant="segmented">
+                {searching && <m3e-list-item><m3e-circular-progress-indicator indeterminate />Searching Wikipedia…</m3e-list-item>}
+                {suggestions.map(item => <m3e-list-item-button key={item.pageid ?? item.title} onClick={() => void openArticle(item.title)}>{item.thumbnail?.source && <img slot="trailing" src={item.thumbnail.source} alt="" width="56" height="56" />}<span>{item.title}</span>{item.description && <span slot="supporting-text">{item.description}</span>}</m3e-list-item-button>)}
+                {!searching && suggestions.length === 0 && <m3e-list-item>No title matches found.</m3e-list-item>}
+              </m3e-list>
+              <m3e-heading level="6" variant="label" size="large" style={{ padding: '14px 32px 8px' }}>In-article matches</m3e-heading>
+              <m3e-list variant="segmented">
+                {searchResults.map(item => <m3e-list-item-button key={item.pageid ?? item.title} onClick={() => void openArticle(item.title)}>{item.thumbnail?.source && <img slot="trailing" src={item.thumbnail.source} alt="" width="56" height="56" />}{item.redirectTitle && <span slot="overline">Redirected from {item.redirectTitle}</span>}<span>{renderSearchSnippet(item.titleSnippet, String(item.pageid ?? item.title))}</span><span slot="supporting-text">{renderSearchSnippet(item.snippet, 'snippet-' + String(item.pageid ?? item.title))}</span></m3e-list-item-button>)}
+                {!searching && searchResults.length === 0 && <m3e-list-item>No in-article matches found.</m3e-list-item>}
+              </m3e-list>
+              <m3e-list variant="segmented"><m3e-list-item><span>Search all of Wikipedia for “{query.trim()}”</span><m3e-button slot="trailing" variant="filled" onClick={doSearch}>Search</m3e-button></m3e-list-item></m3e-list>
+            </> : prefs.searchHistory && searchHistory.length > 0 ? <m3e-list variant="segmented">
               <m3e-list-item><span slot="overline">Search history</span><span>Recent searches</span><m3e-button slot="trailing" variant="text" onClick={() => setSearchHistory([])}>Clear</m3e-button></m3e-list-item>
               {searchHistory.slice(0, 8).map(item => <m3e-list-item-button key={item} onClick={() => { setQuery(item); setSearchOpen(true); }}><m3e-icon slot="leading" variant="rounded" name="history" /><span>{item}</span><m3e-icon slot="trailing" variant="rounded" name="north_west" /></m3e-list-item-button>)}
-            </m3e-list> : null}
-          </m3e-search-view> : <span slot="title">{titleBySection[section]}</span>}
+            </m3e-list> : null}</m3e-search-view> : <span slot="title">{titleBySection[section]}</span>}
           {section === 'history' ? <m3e-icon-button slot="trailing" title="Clear history" aria-label="Clear history" disabled={history.length === 0} onClick={() => setHistory([])}><m3e-icon variant="rounded" name="delete" /></m3e-icon-button> : section === 'settings' ? <m3e-icon-button slot="trailing" title="Reset settings" onClick={() => window.dispatchEvent(new Event('wikireader:reset-settings'))}><m3e-icon variant="rounded" name="refresh" /></m3e-icon-button> : section === 'home' ? <m3e-icon-button slot="trailing" variant="tonal" title="Random article" onClick={() => void randomArticle()}><m3e-icon variant="rounded" name="shuffle" filled /></m3e-icon-button> : null}
         </m3e-app-bar>
         {loading && <m3e-linear-progress-indicator className={prefs.immersiveMode && immersiveHidden && section === 'home' ? 'immersive-hidden' : ''} mode={articleProgress === null ? 'indeterminate' : 'determinate'} value={articleProgress ?? undefined} max={1} />}
@@ -432,7 +470,7 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide, expanded }
         <div slot="content" className="feed-card-content">
           <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{feed.featured.title}</m3e-heading>
           {feed.featured.description && <p className="feed-card-description">{feed.featured.description}</p>}
-          {feed.featured.extract && <p className="feed-card-extract">{feed.featured.extract.length > 520 ? feed.featured.extract.slice(0, 517).trimEnd() + '…' : feed.featured.extract}</p>}
+          {feed.featured.extract && <p className="feed-card-extract feed-featured-extract">{feed.featured.extract}</p>}
         </div>
       </m3e-card>
     </section>}
