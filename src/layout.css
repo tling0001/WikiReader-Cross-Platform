@@ -15,7 +15,9 @@ m3e-drawer-container { display:block; position:relative; flex:1 1 auto; width:10
 .app-main { display:flex; flex-direction:column; flex:1 1 0; width:100%; height:100%; min-width:0; min-height:0; overflow:hidden; }
 .app-main > m3e-content-pane.app-content { flex:1 1 0; height:0; }
 m3e-content-pane.app-content { display:block; width:100%; height:100%; min-width:0; min-height:0; }
-.reading-actions { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:1000; display:block; width:max-content; max-width:calc(100vw - 32px); }
+.reading-actions { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:1000; display:block; width:max-content; max-width:calc(100vw - 32px); transition:opacity 160ms ease, transform 160ms ease, visibility 160ms ease; }
+.reading-actions.immersive-hidden { opacity:0; visibility:hidden; pointer-events:none; transform:translate(-50%, 16px); }
+.app-search-view.immersive-hidden { display:none; }
 m3e-toolbar.reading-toolbar { position:static; transform:none; display:block; width:max-content; max-width:calc(100vw - 80px); overflow-x:auto; }
 m3e-fab.reading-search-fab { position:absolute; left:calc(100% + 16px); top:50%; transform:translateY(-50%); display:block; margin:0; }
 .screen-content { display:flex; flex-direction:column; gap:16px; box-sizing:border-box; min-width:0; padding:16px; }
@@ -37,8 +39,9 @@ m3e-fab.reading-search-fab { position:absolute; left:calc(100% + 16px); top:50%;
 .article-content { display:flex; flex-direction:column; gap:16px; min-width:0; }
 .article-infobox, .article-section { display:block; min-width:0; }
 .article-infobox { width:100%; max-width:512px; align-self:center; box-sizing:border-box; }
-.article-infobox m3e-expansion-panel { display:block; width:100%; }
-.article-infobox [slot="header"] { display:flex; align-items:center; gap:8px; min-width:0; }
+.article-infobox m3e-expandable-list-item { display:block; width:100%; }
+.article-infobox [slot="items"] { min-width:0; }
+.article-infobox [slot="supporting-text"] { min-width:0; overflow-wrap:anywhere; }
 .infobox-compact-title { color:var(--md-sys-color-outline); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .infobox-facts { display:flex; flex-direction:column; min-width:0; }
 .infobox-fact { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 2fr); align-items:start; gap:8px; min-width:0; padding:4px 0; }

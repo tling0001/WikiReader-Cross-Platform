@@ -110,14 +110,17 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
 }
 
 function InfoboxCard({ title, rows }: { title: string; rows: { key: string; label: string; value: ReactNode }[] }) {
-  const [expanded, setExpanded] = useState(false);
-  return <m3e-card variant="filled" className="article-infobox" style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container-low)' } as React.CSSProperties}>
-    <m3e-expansion-panel open={expanded} onToggle={(event) => setExpanded((event.currentTarget as HTMLElement & { open: boolean }).open)} style={{ '--m3e-expansion-panel-container-color': 'var(--md-sys-color-surface-container-low)', '--m3e-expansion-panel-content-padding': '0 16px 16px' } as React.CSSProperties}>
-      <span slot="header"><m3e-icon variant="rounded" name="info" /><strong>Infobox</strong>{!expanded && title && <span className="infobox-compact-title">{title}</span>}</span>
-      {title && <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif', textAlign: 'center' }}>{title}</m3e-heading>}
-      <div className="infobox-facts">{rows.map(row => <div className="infobox-fact" key={row.key}><strong>{row.label}</strong><div>{row.value}</div></div>)}</div>
-    </m3e-expansion-panel>
-  </m3e-card>;
+  return <m3e-action-list variant="segmented" className="article-infobox">
+    <m3e-expandable-list-item>
+      <m3e-icon slot="leading" variant="rounded" name="info" />
+      <span>Infobox</span>
+      {title && <span slot="supporting-text" className="infobox-compact-title">{title}</span>}
+      <div slot="items">
+        {title && <m3e-list-action><m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{title}</m3e-heading></m3e-list-action>}
+        {rows.map(row => <m3e-list-action key={row.key}><strong>{row.label}</strong><div slot="supporting-text">{row.value}</div></m3e-list-action>)}
+      </div>
+    </m3e-expandable-list-item>
+  </m3e-action-list>;
 }
 
 function ArticleSection({ title, headingId, initiallyExpanded, children }: { title: string; headingId?: string; initiallyExpanded: boolean; children: ReactNode }) {

@@ -7,6 +7,9 @@ declare module 'react' {
     interface IntrinsicElements {
       'm3e-circular-progress-indicator': HTMLAttributes<HTMLElement> & { indeterminate?: boolean; value?: number; max?: number; variant?: string };
       'm3e-linear-progress-indicator': HTMLAttributes<HTMLElement> & { mode?: 'determinate' | 'indeterminate' | 'query'; value?: number; max?: number; variant?: string };
+      'm3e-action-list': HTMLAttributes<HTMLElement> & { variant?: 'standard' | 'segmented' };
+      'm3e-expandable-list-item': HTMLAttributes<HTMLElement> & { open?: boolean; disabled?: boolean };
+      'm3e-list-action': HTMLAttributes<HTMLElement> & { disabled?: boolean; href?: string; target?: string };
     }
   }
 }
@@ -20,7 +23,7 @@ type Entry = { title: string; lang: string; visited: number; description?: strin
 type ArticleLanguage = { lang: string; title: string; name?: string };
 type Section = 'home' | 'history' | 'saved' | 'settings' | 'about';
 type Preferences = { theme: 'auto' | 'light' | 'dark'; lang: string; fontStyle: string; colorScheme: string; fontSize: number; blackTheme: boolean; dataSaver: boolean; feedEnabled: boolean; expandedSections: boolean; imageBackground: boolean; immersiveMode: boolean; renderMath: boolean; browsingHistory: boolean; searchHistory: boolean };
-const defaults: Preferences = { theme: 'auto', lang: 'en', fontStyle: 'sans', colorScheme: '#ffffff', fontSize: 16, blackTheme: false, dataSaver: false, feedEnabled: true, expandedSections: false, imageBackground: false, immersiveMode: true, renderMath: true, browsingHistory: true, searchHistory: true };
+const defaults: Preferences = { theme: 'auto', lang: 'en', fontStyle: 'sans', colorScheme: '#ffffff', fontSize: 16, blackTheme: false, dataSaver: false, feedEnabled: true, expandedSections: false, imageBackground: false, immersiveMode: typeof window !== 'undefined' && window.matchMedia('(max-width: 599px)').matches, renderMath: true, browsingHistory: true, searchHistory: true };
 const readStore = <T,>(key: string, fallback: T): T => { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T : fallback; } catch { return fallback; } };
 const writeStore = (key: string, value: unknown) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Storage may be unavailable. */ } };
 type CachedArticle = { html: string; savedAt: number };
@@ -55,6 +58,8 @@ const languages = [['en','English'],['es','Español'],['fr','Français'],['de','
 export default function App() {
   const [section, setSection] = useState<Section>('home');
   const [prefs, setPrefs] = useState<Preferences>(() => ({ ...defaults, ...readStore<Partial<Preferences>>('wr-preferences', {}) }));
+  const [systemDark, setSystemDark] = useState(() => typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const [immersiveHidden, setImmersiveHidden] = useState(false);
   const [history, setHistory] = useState<Entry[]>(() => readStore('wr-history', []));
   const [saved, setSaved] = useState<Entry[]>(() => readStore('wr-saved', []));
   const [searchHistory, setSearchHistory] = useState<string[]>(() => readStore('wr-search-history', []));
@@ -96,6 +101,14 @@ export default function App() {
     return () => { query.removeEventListener('change', updateWidth); expandedQuery.removeEventListener('change', updateExpanded); };
   }, []);
 
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const updateSystemTheme = () => setSystemDark(media.matches);
+    updateSystemTheme();
+    media.addEventListener('change', updateSystemTheme);
+    return () => media.removeEventListener('change', updateSystemTheme);
+  }, []);
+
   useEffect(() => { writeStore('wr-preferences', prefs); }, [prefs]);
   useEffect(() => { writeStore('wr-history', history); }, [history]);
   useEffect(() => { writeStore('wr-saved', saved); }, [saved]);
@@ -103,9 +116,10 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
-    if (!prefs.feedEnabled) { setFeed({ featured: null, trending: [], image: null, news: [], onthisday: [] }); setFeedLoading(false); return () => { active = false; }; }
+    if (!prefs.feedEnabled || prefs.dataSaver) { setFeed({ featured: null, trending: [], image: null, news: [], onthisday: [] }); setFeedLoading(false); return () => { active = false; }; }
     setFeedLoading(true);
-    const date = new Date().toISOString().slice(0, 10).replaceAll('-', '/');
+    const now = new Date();
+    const date = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('/');
     api<{
       tfa?: { titles?: { canonical?: string; normalized?: string }; thumbnail?: Page['thumbnail']; originalimage?: Page['thumbnail']; description?: string; extract?: string };
       mostread?: { articles?: { titles?: { canonical?: string; normalized?: string }; thumbnail?: Page['thumbnail']; originalimage?: Page['thumbnail']; description?: string; extract?: string; pageid?: number; views?: number; viewHistory?: { views?: number }[] }[] };
@@ -130,7 +144,7 @@ export default function App() {
       })
       .catch(() => { if (active) { setFeed({ featured: null, trending: [], image: null, news: [], onthisday: [] }); setFeedLoading(false); } });
     return () => { active = false; };
-  }, [lang, prefs.feedEnabled]);
+  }, [lang, prefs.feedEnabled, prefs.dataSaver]);
 
   useEffect(() => {
     const term = query.trim();
@@ -145,6 +159,23 @@ export default function App() {
     }, 250);
     return () => { active = false; window.clearTimeout(timer); };
   }, [query, lang]);
+
+  useEffect(() => {
+    setImmersiveHidden(false);
+    if (!prefs.immersiveMode || section !== 'home') return;
+    const pane = document.querySelector<HTMLElement & { shadowRoot?: ShadowRoot }>('m3e-content-pane.app-content');
+    const scroller = pane?.shadowRoot?.querySelector<HTMLElement>('.scroll-container') || pane;
+    if (!scroller) return;
+    let previousTop = scroller.scrollTop;
+    const onScroll = () => {
+      const top = scroller.scrollTop;
+      if (top <= 24 || top < previousTop - 4) setImmersiveHidden(false);
+      else if (top > previousTop + 4) setImmersiveHidden(true);
+      previousTop = top;
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => scroller.removeEventListener('scroll', onScroll);
+  }, [prefs.immersiveMode, section, article?.title]);
 
   useEffect(() => {
     const view = searchViewRef.current;
@@ -240,7 +271,7 @@ export default function App() {
     setSaved(previous => isSaved ? previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)) : [entry, ...previous]);
   };
   const doSearch = () => { const value = query.trim(); if (value) { setSearchOpen(false); void openArticle(value); } };
-  const focusSearch = () => setSearchOpen(true);
+  const focusSearch = () => { setImmersiveHidden(false); setSearchOpen(true); };
   const back = () => { if (stack.length > 1) { const previous = stack[stack.length - 2]; setStack(items => items.slice(0, -1)); void openArticle(previous, false); } else { setArticle(null); setArticleHtml(''); setStack([]); } };
   const shareArticle = async () => {
     if (!article) return;
@@ -259,7 +290,6 @@ export default function App() {
   };
   const filteredHistory = history.filter(item => (item.title + ' ' + (item.description || '')).toLowerCase().includes(listFilter.toLowerCase()));
   const filteredSaved = saved.filter(item => (item.title + ' ' + (item.description || '')).toLowerCase().includes(listFilter.toLowerCase()));
-  const selectedLangName = languages.find(item => item[0] === lang)?.[1] ?? lang;
 
   const goToSection = (target: Section) => {
     setSearchOpen(false); setSection(target); setShowNavigation(false); setListFilter('');
@@ -274,9 +304,17 @@ export default function App() {
     <m3e-nav-item selected={section === 'about'} onClick={() => goToSection('about')}><m3e-icon slot="icon" variant="rounded" name="info" filled={section === 'about'} />About</m3e-nav-item>
   </>;
   const searchActive = query.trim().length > 1;
+  const blackThemeActive = prefs.blackTheme && (prefs.theme === 'dark' || (prefs.theme === 'auto' && systemDark));
+  const blackThemeStyle = blackThemeActive ? ({
+    '--md-sys-color-background': '#000000',
+    '--md-sys-color-surface': '#000000',
+    '--md-sys-color-surface-dim': '#000000',
+    '--md-sys-color-surface-container-lowest': '#000000',
+    '--md-sys-color-surface-container-low': '#000000'
+  } as React.CSSProperties) : undefined;
   const screenContent = <div className="screen-content">
     {error && <m3e-card variant="filled"><m3e-list slot="content" variant="standard"><m3e-list-item><m3e-icon variant="rounded" slot="leading" name="error" />{error}<m3e-button slot="trailing" variant="text" onClick={() => setError('')}>Dismiss</m3e-button></m3e-list-item></m3e-list></m3e-card>}
-    {section === 'home' && (article ? <ArticleScreen article={article} html={articleHtml} loading={loading} saved={isSaved} onBack={back} onSave={toggleSaved} fontSize={prefs.fontSize} dataSaver={prefs.dataSaver} expandedSections={prefs.expandedSections} fontStyle={prefs.fontStyle} imageBackground={prefs.imageBackground} renderMath={prefs.renderMath} languages={articleLanguages} onChooseLanguage={(targetLang, targetTitle) => { update('lang', targetLang); void openArticle(targetTitle, true, targetLang); }} /> : <HomeScreen feed={feed} loading={feedLoading} onOpen={title => void openArticle(title)} onRandom={randomArticle} enabled={prefs.feedEnabled} wide={wide} expanded={expandedLayout} />)}
+    {section === 'home' && (article ? <ArticleScreen article={article} html={articleHtml} loading={loading} saved={isSaved} onBack={back} onSave={toggleSaved} fontSize={prefs.fontSize} dataSaver={prefs.dataSaver} expandedSections={prefs.expandedSections} fontStyle={prefs.fontStyle} imageBackground={prefs.imageBackground} renderMath={prefs.renderMath} languages={articleLanguages} onChooseLanguage={(targetLang, targetTitle) => { update('lang', targetLang); void openArticle(targetTitle, true, targetLang); }} /> : <HomeScreen feed={feed} loading={feedLoading} onOpen={title => void openArticle(title)} onRandom={randomArticle} enabled={prefs.feedEnabled && !prefs.dataSaver} wide={wide} expanded={expandedLayout} />)}
     {section === 'history' && <LibraryScreen title="Reading history" entries={filteredHistory} total={history.length} emptyTitle="No reading history" emptyText="Articles you read will appear here." filter={listFilter} setFilter={setListFilter} onOpen={entry => void openArticle(entry.title, true, entry.lang)} onClear={() => setHistory([])} onRemove={entry => setHistory(previous => previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)))} clearLabel="Clear history" />}
     {section === 'saved' && <LibraryScreen title="Saved articles" entries={filteredSaved} total={saved.length} emptyTitle="No saved articles" emptyText="Articles you save will appear here." filter={listFilter} setFilter={setListFilter} onOpen={entry => void openArticle(entry.title, true, entry.lang)} onClear={() => setSaved([])} onRemove={entry => setSaved(previous => previous.filter(item => !(item.title === entry.title && item.lang === entry.lang)))} clearLabel="Remove all" />}
     {section === 'settings' && <SettingsScreen prefs={prefs} update={update} languageFilter={languageFilter} setLanguageFilter={setLanguageFilter} onClearData={() => { setHistory([]); setSaved([]); setSearchHistory([]); writeStore(cacheKey, {}); }} onReset={() => { setPrefs({ ...defaults }); setLanguageFilter(''); }} />}
@@ -284,7 +322,7 @@ export default function App() {
 
   </div>;
   const titleBySection: Record<Section, string> = { home: article?.title ?? 'WikiReader', history: 'History', saved: 'Saved articles', settings: 'Settings', about: 'About WikiReader' };
-  return <m3e-theme className="app-shell" color={prefs.colorScheme.toLowerCase() === '#ffffff' ? '#6650a4' : prefs.colorScheme} scheme={prefs.blackTheme && prefs.theme === 'dark' ? 'dark' : prefs.theme} variant="tonal-spot" motion="expressive">
+  return <m3e-theme className="app-shell" color={prefs.colorScheme.toLowerCase() === '#ffffff' ? '#6650a4' : prefs.colorScheme} scheme={prefs.theme} variant="tonal-spot" motion="expressive" style={blackThemeStyle}>
     <m3e-drawer-container start={showNavigation && !wide} start-mode="over" onChange={event => setShowNavigation(Boolean((event.currentTarget as HTMLElement & { start?: boolean }).start))} style={{ backgroundColor: 'var(--md-sys-color-surface-container-low)' }}>
       <nav slot="start" aria-label="Main navigation" style={{ backgroundColor: 'var(--md-sys-color-surface-container-low)', color: 'var(--md-sys-color-on-surface)' }}>
         <m3e-nav-rail mode="expanded">{navigationItems}</m3e-nav-rail>
@@ -301,8 +339,8 @@ export default function App() {
             : wide
               ? <m3e-icon-button slot="leading-icon" title="Search Wikipedia" aria-label="Search Wikipedia" onClick={focusSearch}><m3e-icon variant="rounded" name="search" /></m3e-icon-button>
               : <m3e-icon-button slot="leading-icon" title="Open navigation" onClick={() => setShowNavigation(true)}><m3e-icon variant="rounded" name="menu" /></m3e-icon-button>}
-          {section === 'home' ? <m3e-search-view ref={searchViewRef} className="app-search-view" slot="title" mode="fullscreen" open={searchOpen} clear-label="Clear search" close-label="Close search" style={{ width: '100%', minWidth: 0, flex: '1 1 auto' }}>
-            <input slot="input" aria-label="Search Wikipedia" placeholder={'Search ' + selectedLangName + ' Wikipedia'} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') doSearch(); }} />
+          {section === 'home' ? <m3e-search-view ref={searchViewRef} className={'app-search-view' + (prefs.immersiveMode && immersiveHidden ? ' immersive-hidden' : '')} slot="title" mode="fullscreen" open={searchOpen} clear-label="Clear search" close-label="Close search" style={{ width: '100%', minWidth: 0, flex: '1 1 auto' }}>
+            <input slot="input" aria-label="Search Wikipedia" placeholder="Search Wikipedia" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') doSearch(); }} />
             {searchActive ? <m3e-list variant="segmented">
               <m3e-list-item><span slot="overline">Wikipedia search</span><span>Results for “{query.trim()}”</span><m3e-button slot="trailing" variant="filled" onClick={doSearch}>Open article</m3e-button></m3e-list-item>
               {searching && <m3e-list-item><m3e-circular-progress-indicator indeterminate />Searching Wikipedia…</m3e-list-item>}
@@ -321,7 +359,7 @@ export default function App() {
     </div>
 </m3e-drawer-container>
     {showGlobalLanguagePicker && <LanguagePickerDialog open={showGlobalLanguagePicker} filter={globalLanguageFilter} setFilter={setGlobalLanguageFilter} currentLang={prefs.lang} title="Wikipedia language" onClose={() => setShowGlobalLanguagePicker(false)} onChoose={targetLang => { update('lang', targetLang); setShowGlobalLanguagePicker(false); setGlobalLanguageFilter(''); }} />}
-    {section === 'home' && <div className="reading-actions"><m3e-toolbar className="reading-toolbar" variant="vibrant" shape="rounded" elevated>
+    {section === 'home' && <div className={'reading-actions' + (prefs.immersiveMode && immersiveHidden ? ' immersive-hidden' : '')}><m3e-toolbar className="reading-toolbar" variant="vibrant" shape="rounded" elevated>
       {article && <m3e-icon-button title="Back" aria-label="Back" onClick={back}><m3e-icon variant="rounded" name="arrow_back" /></m3e-icon-button>}
       <m3e-icon-button title="Article language" aria-label="Article language" disabled={Boolean(article && articleLanguages.length === 0)} onClick={() => article ? window.dispatchEvent(new CustomEvent('wikireader:show-languages')) : setShowGlobalLanguagePicker(true)}><m3e-icon variant="rounded" name="translate" /></m3e-icon-button>
       <m3e-icon-button title="Share article" aria-label="Share article" disabled={!article} onClick={() => void shareArticle()}><m3e-icon variant="rounded" name="share" /></m3e-icon-button>
@@ -467,18 +505,18 @@ function SettingsScreen({ prefs, update, languageFilter, setLanguageFilter, onCl
   const themes=[['auto','System default'],['light','Light'],['dark','Dark']] as const;
   const colors=['#feb4a7','#ffb3c0','#fcaaff','#b9c3ff','#62d3ff','#44d9f1','#52dbc9','#78dd77','#9fd75c','#c1d02d','#fabd00','#ffb86e','#ffffff'];
   const switches:{key:'dataSaver'|'feedEnabled'|'expandedSections'|'imageBackground'|'immersiveMode'|'renderMath'|'browsingHistory'|'searchHistory';label:string;desc:string}[]=[
-    {key:'dataSaver',label:'Data saver',desc:'Avoid loading images to reduce data usage.'},{key:'feedEnabled',label:'Home feed',desc:'Show featured and trending articles on Home.'},{key:'expandedSections',label:'Expanded sections',desc:'Expand article sections by default.'},{key:'imageBackground',label:'Image background',desc:'Display a surface behind article images.'},{key:'immersiveMode',label:'Immersive mode',desc:'Reduce app controls while reading, where supported.'},{key:'renderMath',label:'Render mathematical notation',desc:'Display equations in article content.'},{key:'browsingHistory',label:'Browsing history',desc:'Remember articles you open.'},{key:'searchHistory',label:'Search history',desc:'Keep recent search terms on this device.'}];
+    {key:'dataSaver',label:'Data saver',desc:'Avoid loading images to reduce data usage.'},{key:'feedEnabled',label:'Home feed',desc:'Show featured and trending articles on Home.'},{key:'expandedSections',label:'Expanded sections',desc:'Expand article sections by default.'},{key:'imageBackground',label:'Image background',desc:'Display a surface behind article images.'},{key:'immersiveMode',label:'Immersive mode',desc:'Hide the search bar and floating action buttons while scrolling.'},{key:'renderMath',label:'Render mathematical notation',desc:'Display equations in article content.'},{key:'browsingHistory',label:'Browsing history',desc:'Remember articles you open.'},{key:'searchHistory',label:'Search history',desc:'Keep recent search terms on this device.'}];
   return <>
     <m3e-list variant="segmented">
       <m3e-list-item><span slot="overline">Personalization</span><span>Appearance and reading</span></m3e-list-item>
       <m3e-list-item-button onClick={()=>setColorsOpen(true)}><m3e-icon slot="leading" variant="rounded" name="palette"/><span>Color scheme</span><span slot="supporting-text">{prefs.colorScheme}</span><m3e-icon slot="trailing" variant="rounded" name="chevron_right"/></m3e-list-item-button>
       <m3e-list-item-button onClick={()=>setThemeOpen(true)}><m3e-icon slot="leading" variant="rounded" name="brightness_6"/><span>Theme</span><span slot="supporting-text">{themes.find(x=>x[0]===prefs.theme)?.[1]}</span><m3e-icon slot="trailing" variant="rounded" name="chevron_right"/></m3e-list-item-button>
-      <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="brightness_6"/><span>Black theme</span><span slot="supporting-text">Use a black reading theme in dark mode.</span><m3e-switch slot="trailing" checked={prefs.blackTheme} onChange={()=>update('blackTheme',!prefs.blackTheme)}/></m3e-list-item>
+      <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="brightness_6"/><span>Black theme</span><span slot="supporting-text">Use a pure black dark theme.</span><m3e-switch slot="trailing" checked={prefs.blackTheme} onChange={()=>update('blackTheme',!prefs.blackTheme)}/></m3e-list-item>
     </m3e-list>
     <m3e-list variant="segmented">
       <m3e-list-item><span slot="overline">Reading</span><span>Language and typography</span></m3e-list-item>
       <m3e-list-item-button onClick={()=>setLanguageOpen(true)}><m3e-icon slot="leading" variant="rounded" name="translate"/><span>Wikipedia language</span><span slot="supporting-text">{languages.find(x=>x[0]===prefs.lang)?.[1] || prefs.lang} ({prefs.lang})</span><m3e-icon slot="trailing" variant="rounded" name="chevron_right"/></m3e-list-item-button>
-      <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="text_fields"/><span>Font style</span><m3e-button-group slot="trailing" variant="connected"><m3e-button variant="tonal" shape="square" toggle aria-pressed={prefs.fontStyle==='sans'} onClick={()=>update('fontStyle','sans')}>Sans-serif</m3e-button><m3e-button variant="tonal" shape="square" toggle aria-pressed={prefs.fontStyle==='serif'} onClick={()=>update('fontStyle','serif')}>Serif</m3e-button></m3e-button-group></m3e-list-item>
+      <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="text_fields"/><span>Font style</span><m3e-button-group slot="trailing" variant="tonal"><m3e-button variant="tonal" shape="square" toggle aria-pressed={prefs.fontStyle==='sans'} onClick={()=>update('fontStyle','sans')}>Sans-serif</m3e-button><m3e-button variant="tonal" shape="square" toggle aria-pressed={prefs.fontStyle==='serif'} onClick={()=>update('fontStyle','serif')}>Serif</m3e-button></m3e-button-group></m3e-list-item>
       <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="format_size"/><span>Article font size</span><span slot="supporting-text">{prefs.fontSize} sp</span></m3e-list-item>
       <m3e-list-item><m3e-slider min={10} max={22} step={1} discrete labelled onInput={event=>{const thumb=(event.currentTarget as HTMLElement).querySelector<HTMLElement & {value?:number}>('m3e-slider-thumb');const value=Number(thumb?.value ?? thumb?.getAttribute('value') ?? prefs.fontSize);if(Number.isFinite(value))update('fontSize',Math.max(10,Math.min(22,Math.round(value))));}}><m3e-slider-thumb value={prefs.fontSize}/></m3e-slider></m3e-list-item>
       </m3e-list>
