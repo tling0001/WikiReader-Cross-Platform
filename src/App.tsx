@@ -9,7 +9,7 @@ declare module 'react' {
       'm3e-linear-progress-indicator': HTMLAttributes<HTMLElement> & { mode?: 'determinate' | 'indeterminate' | 'query'; value?: number; max?: number; variant?: string };
       'm3e-action-list': HTMLAttributes<HTMLElement> & { variant?: 'standard' | 'segmented' };
       'm3e-expandable-list-item': HTMLAttributes<HTMLElement> & { open?: boolean; disabled?: boolean };
-      'm3e-list-action': HTMLAttributes<HTMLElement> & { disabled?: boolean; href?: string; target?: string };
+      'm3e-list-action': HTMLAttributes<HTMLElement> & { key?: React.Key; disabled?: boolean; href?: string; target?: string };
     }
   }
 }
@@ -516,7 +516,7 @@ function SettingsScreen({ prefs, update, languageFilter, setLanguageFilter, onCl
     <m3e-list variant="segmented">
       <m3e-list-item><span slot="overline">Reading</span><span>Language and typography</span></m3e-list-item>
       <m3e-list-item-button onClick={()=>setLanguageOpen(true)}><m3e-icon slot="leading" variant="rounded" name="translate"/><span>Wikipedia language</span><span slot="supporting-text">{languages.find(x=>x[0]===prefs.lang)?.[1] || prefs.lang} ({prefs.lang})</span><m3e-icon slot="trailing" variant="rounded" name="chevron_right"/></m3e-list-item-button>
-      <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="text_fields"/><span>Font style</span><m3e-button-group slot="trailing" variant="tonal"><m3e-button variant="tonal" shape="square" toggle aria-pressed={prefs.fontStyle==='sans'} onClick={()=>update('fontStyle','sans')}>Sans-serif</m3e-button><m3e-button variant="tonal" shape="square" toggle aria-pressed={prefs.fontStyle==='serif'} onClick={()=>update('fontStyle','serif')}>Serif</m3e-button></m3e-button-group></m3e-list-item>
+      <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="text_fields"/><span>Font style</span><m3e-button-group slot="trailing" variant="connected"><m3e-button variant="tonal" shape="square" toggle aria-pressed={prefs.fontStyle==='sans'} onClick={()=>update('fontStyle','sans')}>Sans-serif</m3e-button><m3e-button variant="tonal" shape="square" toggle aria-pressed={prefs.fontStyle==='serif'} onClick={()=>update('fontStyle','serif')}>Serif</m3e-button></m3e-button-group></m3e-list-item>
       <m3e-list-item><m3e-icon slot="leading" variant="rounded" name="format_size"/><span>Article font size</span><span slot="supporting-text">{prefs.fontSize} sp</span></m3e-list-item>
       <m3e-list-item><m3e-slider min={10} max={22} step={1} discrete labelled onInput={event=>{const thumb=(event.currentTarget as HTMLElement).querySelector<HTMLElement & {value?:number}>('m3e-slider-thumb');const value=Number(thumb?.value ?? thumb?.getAttribute('value') ?? prefs.fontSize);if(Number.isFinite(value))update('fontSize',Math.max(10,Math.min(22,Math.round(value))));}}><m3e-slider-thumb value={prefs.fontSize}/></m3e-slider></m3e-list-item>
       </m3e-list>
