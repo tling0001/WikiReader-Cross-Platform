@@ -393,7 +393,7 @@ export default function App() {
     '--md-sys-color-surface-container-lowest': '#000000',
     '--md-sys-color-surface-container-low': '#000000'
   } as React.CSSProperties) : undefined;
-  const screenContent = <div className="screen-content">
+  const screenContent = <div key={section + ':' + (section === 'home' ? (article?.title ?? 'feed') : section)} className="screen-content screen-transition">
     {error && <m3e-card variant="filled"><m3e-list slot="content" variant="standard"><m3e-list-item><m3e-icon variant="rounded" slot="leading" name="error" />{error}<m3e-button slot="trailing" variant="text" onClick={() => setError('')}>Dismiss</m3e-button></m3e-list-item></m3e-list></m3e-card>}
     {section === 'home' && (article ? <ArticleScreen article={article} html={articleHtml} loading={loading} saved={isSaved} onBack={back} onSave={toggleSaved} fontSize={prefs.fontSize} dataSaver={prefs.dataSaver} expandedSections={prefs.expandedSections} fontStyle={prefs.fontStyle} imageBackground={prefs.imageBackground} renderMath={prefs.renderMath} languages={articleLanguages} onChooseLanguage={(targetLang, targetTitle) => { update('lang', targetLang); void openArticle(targetTitle, true, targetLang); }} /> : <HomeScreen feed={feed} loading={feedLoading} onOpen={title => void openArticle(title)} onRandom={randomArticle} enabled={prefs.feedEnabled && !prefs.dataSaver} wide={wide} expanded={expandedLayout} />)}
     {section === 'history' && <HistoryScreen entries={filteredHistory} total={history.length} onOpen={entry => void openArticle(entry.title, true, entry.lang)} />}
@@ -502,8 +502,8 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide, expanded }
       <m3e-heading level="2" variant="headline" size="medium" style={{padding:'16px 16px 0'}}>Featured article</m3e-heading>
       <m3e-heading level="6" variant="label" size="medium" style={{padding:'0 16px'}}>{today}</m3e-heading>
       <m3e-card variant="filled" actionable orientation={expanded ? 'horizontal' : 'vertical'} onClick={() => onOpen(feed.featured?.title.replaceAll('_', ' ') || '')} style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container)', width:'calc(100% - 32px)', margin:'8px 16px' } as React.CSSProperties}>
-        {feed.featured.thumbnail?.source && <img slot="header" src={feed.featured.thumbnail.source} alt={feed.featured.title} width={feed.featured.thumbnail.width} height={feed.featured.thumbnail.height} loading="lazy" style={expanded ? { display:'block', width:'50%', maxWidth:'50%', minWidth:0, height:'100%', objectFit:'cover', flex:'0 0 50%' } : { display:'block', width:'100%', maxWidth:'100%', height:'auto', maxHeight:'420px', objectFit:'cover' }} />}
-        <div slot="content" className="feed-card-content" style={expanded ? { width:'50%', maxWidth:'50%', minWidth:0, flex:'1 1 50%', boxSizing:'border-box' } : undefined}>
+        {feed.featured.thumbnail?.source && <img slot="header" src={feed.featured.thumbnail.source} alt={feed.featured.title} width={feed.featured.thumbnail.width} height={feed.featured.thumbnail.height} loading="lazy" className="feed-card-image" />}
+        <div slot="content" className="feed-card-content" >
           <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{feed.featured.title}</m3e-heading>
           {feed.featured.description && <p className="feed-card-description">{feed.featured.description}</p>}
           {feed.featured.extract && <p className="feed-card-extract feed-featured-extract" style={{ display:'-webkit-box', WebkitBoxOrient:'vertical', WebkitLineClamp:5, overflow:'hidden' }}>{feed.featured.extract}</p>}
@@ -535,8 +535,8 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide, expanded }
     {enabled && (feed.image?.thumbnail?.source || feed.image?.image?.source) && <section className="feed-section">
       <m3e-heading level="3" variant="title" size="large" style={{padding:'24px 16px 0'}}>Picture of the day</m3e-heading>
       <m3e-card variant="filled" orientation={expanded ? 'horizontal' : 'vertical'} style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container)', width:'calc(100% - 32px)', margin:'8px 16px' } as React.CSSProperties}>
-        <img slot="header" src={(feed.image.thumbnail || feed.image.image)?.source} alt={feed.image.description?.text || feed.image.title || 'Picture of the day'} width={(feed.image.thumbnail || feed.image.image)?.width} height={(feed.image.thumbnail || feed.image.image)?.height} loading="lazy" style={expanded ? { display:'block', width:'50%', maxWidth:'50%', minWidth:0, height:'100%', objectFit:'cover', flex:'0 0 50%' } : { display:'block', width:'100%', maxWidth:'100%', height:'auto', maxHeight:'420px', objectFit:'cover' }} />
-        <div slot="content" className="feed-card-content" style={expanded ? { width:'50%', maxWidth:'50%', minWidth:0, flex:'1 1 50%', boxSizing:'border-box' } : undefined}>
+        <img slot="header" src={(feed.image.thumbnail || feed.image.image)?.source} alt={feed.image.description?.text || feed.image.title || 'Picture of the day'} width={(feed.image.thumbnail || feed.image.image)?.width} height={(feed.image.thumbnail || feed.image.image)?.height} loading="lazy" className="feed-card-image" />
+        <div slot="content" className="feed-card-content" >
           {feed.image.description?.text && <p className="feed-card-extract">{feed.image.description.text}</p>}
           {(feed.image.artist?.name || feed.image.artist?.text) && <p className="feed-card-description">{feed.image.artist.name || feed.image.artist.text}{feed.image.credit?.text ? ' ('+feed.image.credit.text.split(';')[0]+')' : ''}</p>}
         </div>
