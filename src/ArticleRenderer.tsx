@@ -9,11 +9,12 @@ type ArticleRendererProps = {
   fontStyle: string;
   imageBackground: boolean;
   renderMath: boolean;
+  darkTheme: boolean;
   onLinkClick: (title: string) => void;
   pageImageUri?: string;
 };
 
-type RenderOptions = Pick<ArticleRendererProps, 'lang' | 'dataSaver' | 'fontSize' | 'fontStyle' | 'imageBackground' | 'renderMath' | 'onLinkClick'> & { onImageClick: (src: string, caption: string) => void; pageImageUri?: string; firstImageSkipped?: boolean };
+type RenderOptions = Pick<ArticleRendererProps, 'lang' | 'dataSaver' | 'fontSize' | 'fontStyle' | 'imageBackground' | 'renderMath' | 'darkTheme' | 'onLinkClick'> & { onImageClick: (src: string, caption: string) => void; pageImageUri?: string; firstImageSkipped?: boolean };
 
 const ignoredClasses = ['mw-editsection', 'noprint', 'metadata', 'mw-empty-elt'];
 
@@ -27,13 +28,32 @@ function cleanTitle(href: string, lang: string): string | null {
 
 function renderNode(node: Node, key: string, options: RenderOptions): ReactNode {
   if (node.nodeType === Node.TEXT_NODE) return node.nodeValue;
-  if (!(node instanceof HTMLElement)) return null;
-  const element = node;
-  const classNames = element.className.toString().split(/\s+/);
+  if (node.nodeType !== Node.ELEMENT_NODE) return null;
+  const element = node as HTMLElement;
+  const classNames = String(element.className ?? '').split(/\s+/);
   if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'LINK', 'META'].includes(element.tagName) || ignoredClasses.some(name => classNames.includes(name))) return null;
   if (element.hidden || element.getAttribute('aria-hidden') === 'true') return null;
-  const children = Array.from(element.childNodes).map((child, index) => renderNode(child, key + '-' + index, options));
   const tag = element.tagName.toLowerCase();
+  if (tag === 'math' || classNames.includes('mwe-math-element')) {
+    const annotation = element.querySelector('annotation[encoding="application/x-tex"], annotation[encoding^="application/x-tex"]');
+    const sourceImage = element.querySelector('img');
+    const latex = (annotation?.textContent || sourceImage?.getAttribute('alt') || element.getAttribute('alt') || element.textContent || '').trim();
+    if (!latex) return null;
+    if (!options.renderMath) {
+      const readable = latex.replace(/\\(?:text|mathrm|mathbf|mathit)\{([^{}]*)\}/g, '$1').replace(/\\times\b/g, '×').replace(/\\cdot\b/g, '·').replace(/\\pi\b/g, 'π').replace(/\\sqrt\{([^{}]*)\}/g, '√($1)');
+      return <span key={key} style={{fontFamily:'serif'}}>{readable}</span>;
+    }
+    const displayMath = element.getAttribute('display')?.toLowerCase() === 'block'
+      || Boolean(element.querySelector('.mwe-math-mathml-display, .mwe-math-fallback-image-display'))
+      || classNames.some(name => name.includes('display'));
+    const dpi = Math.round(160 * (options.fontSize / 16));
+    const equationUrl = 'https://latex.codecogs.com/png.image?\\dpi{' + dpi + '}' + encodeURIComponent(latex);
+    const image = <img key={key + '-equation'} src={equationUrl} alt={latex} loading="lazy" decoding="async" style={{display:displayMath?'block':'inline',width:'auto',height:'auto',maxWidth:displayMath?'none':'100%',verticalAlign:'middle',filter:options.darkTheme?'invert(1)':undefined}} />;
+    return displayMath
+      ? <div key={key} role="img" aria-label={latex} style={{display:'block',width:'100%',maxWidth:'100%',overflowX:'auto',boxSizing:'border-box',padding:'4px 16px'}}>{image}</div>
+      : image;
+  }
+  const children = Array.from(element.childNodes).map((child, index) => renderNode(child, key + '-' + index, options));
   if (tag === 'a') {
     const href = element.getAttribute('href') || '';
     const title = cleanTitle(href, options.lang);
@@ -97,12 +117,6 @@ function renderNode(node: Node, key: string, options: RenderOptions): ReactNode 
   if (tag === 'figure' || classNames.includes('thumb') || classNames.includes('gallerybox')) {
     return <div key={key}>{children}</div>;
   }
-  if (tag === 'math' || classNames.includes('mwe-math-element')) {
-    if (!options.renderMath) {
-      const alt = element.querySelector('img')?.getAttribute('alt') || element.textContent || '';
-      return <span key={key}>{alt.replace(/\\(text|mathrm|mathbf)\{([^}]+)\}/g, '$2')}</span>;
-    }
-  }
   const safeTags = new Set(['article','section','div','span','p','br','hr','strong','b','em','i','u','s','sub','sup','blockquote','pre','code','ul','ol','li','dl','dt','dd','h1','h2','h3','h4','h5','h6','abbr','cite','q','small','ruby','rt','rp','math','mrow','mi','mn','mo','msup','msub','mfrac','semantics','annotation','picture','source','figcaption','caption','thead','tbody','tfoot','tr','td','th','colgroup','col','time','details','summary']);
   const safeTag = safeTags.has(tag) ? tag : 'span';
   const props: Record<string, any> = { key };
@@ -149,7 +163,7 @@ function ArticleSection({ title, headingId, initiallyExpanded, children }: { tit
   </m3e-expansion-panel>;
 }
 
-export default function ArticleRenderer({ html, lang, dataSaver, expandedSections, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, onLinkClick }: ArticleRendererProps) {
+export default function ArticleRenderer({ html, lang, dataSaver, expandedSections, fontSize, fontStyle, imageBackground, renderMath, darkTheme, pageImageUri, onLinkClick }: ArticleRendererProps) {
   const [selectedImage, setSelectedImage] = useState<{ src: string; caption: string } | null>(null);
   const sections = useMemo(() => {
     const document = new DOMParser().parseFromString(html, 'text/html');
@@ -189,7 +203,7 @@ export default function ArticleRenderer({ html, lang, dataSaver, expandedSection
     if (current.nodes.length || current.heading) groups.push(current);
     return { lead, groups };
   }, [html]);
-  const options: RenderOptions = { lang, dataSaver, fontSize, fontStyle, imageBackground, renderMath, pageImageUri, firstImageSkipped: false, onLinkClick, onImageClick: (src, caption) => setSelectedImage({ src, caption }) };
+  const options: RenderOptions = { lang, dataSaver, fontSize, fontStyle, imageBackground, renderMath, darkTheme, pageImageUri, firstImageSkipped: false, onLinkClick, onImageClick: (src, caption) => setSelectedImage({ src, caption }) };
   return <div className="article-content" style={{ fontFamily: fontStyle === 'serif' ? 'serif' : 'Roboto, Arial, sans-serif', fontSize: fontSize + 'px', lineHeight: 1.5, letterSpacing: '0.5px' }}>
     {pageImageUri && !dataSaver && <m3e-card variant="filled" style={{width:'100%',maxWidth:'512px',alignSelf:'center'}}><img slot="header" src={pageImageUri} alt="Article lead image" loading="lazy" decoding="async" style={{display:'block',width:'100%',height:'auto',objectFit:'contain'}} /></m3e-card>}
     {sections.lead && <section className="article-lead">{renderNode(sections.lead, 'article-lead', options)}</section>}

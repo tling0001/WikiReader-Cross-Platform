@@ -14,6 +14,7 @@ declare module 'react' {
   }
 }
 import ArticleRenderer from './ArticleRenderer';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 type Page = { title: string; description?: string; extract?: string; thumbnail?: { source: string; width?: number; height?: number }; pageid?: number; lang?: string; views?: number; viewHistory?: { views?: number }[] };
 type SearchResult = { title: string; pageid?: number; snippet: string; titleSnippet: string; redirectTitle?: string; thumbnail?: { source: string; width?: number; height?: number } };
@@ -501,7 +502,7 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide, expanded }
     {enabled && feed.featured && <section className="feed-section">
       <m3e-heading level="2" variant="headline" size="medium" style={{padding:'16px 16px 0'}}>Featured article</m3e-heading>
       <m3e-heading level="6" variant="label" size="medium" style={{padding:'0 16px'}}>{today}</m3e-heading>
-      <m3e-card variant="filled" actionable orientation={expanded ? 'horizontal' : 'vertical'} onClick={() => onOpen(feed.featured?.title.replaceAll('_', ' ') || '')} style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container)', width:'calc(100% - 32px)', margin:'8px 16px' } as React.CSSProperties}>
+      <m3e-card variant="filled" actionable orientation={expanded ? 'horizontal' : 'vertical'} onClick={() => onOpen(feed.featured?.title.replaceAll('_', ' ') || '')} style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container)', width:'calc(100% - 32px)', margin:'8px 16px', containerType:'inline-size' } as React.CSSProperties}>
         {feed.featured.thumbnail?.source && <img slot="header" src={feed.featured.thumbnail.source} alt={feed.featured.title} width={feed.featured.thumbnail.width} height={feed.featured.thumbnail.height} loading="lazy" className="feed-card-image" />}
         <div slot="content" className="feed-card-content" >
           <m3e-heading level="3" variant="headline" size="medium" style={{ fontFamily: 'serif' }}>{feed.featured.title}</m3e-heading>
@@ -534,7 +535,7 @@ function HomeScreen({ feed, loading, onOpen, onRandom, enabled, wide, expanded }
     </section>}
     {enabled && (feed.image?.thumbnail?.source || feed.image?.image?.source) && <section className="feed-section">
       <m3e-heading level="3" variant="title" size="large" style={{padding:'24px 16px 0'}}>Picture of the day</m3e-heading>
-      <m3e-card variant="filled" orientation={expanded ? 'horizontal' : 'vertical'} style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container)', width:'calc(100% - 32px)', margin:'8px 16px' } as React.CSSProperties}>
+      <m3e-card variant="filled" orientation={expanded ? 'horizontal' : 'vertical'} style={{ '--m3e-card-container-color': 'var(--md-sys-color-surface-container)', width:'calc(100% - 32px)', margin:'8px 16px', containerType:'inline-size' } as React.CSSProperties}>
         <img slot="header" src={(feed.image.thumbnail || feed.image.image)?.source} alt={feed.image.description?.text || feed.image.title || 'Picture of the day'} width={(feed.image.thumbnail || feed.image.image)?.width} height={(feed.image.thumbnail || feed.image.image)?.height} loading="lazy" className="feed-card-image" />
         <div slot="content" className="feed-card-content" >
           {feed.image.description?.text && <p className="feed-card-extract">{feed.image.description.text}</p>}
@@ -608,7 +609,7 @@ function ArticleScreen({ article, html, loading, saved, onBack, onSave, fontSize
     {showLanguages && <m3e-card variant="filled"><m3e-list slot="content" variant="standard"><m3e-list-item>Available article languages</m3e-list-item><m3e-list-item><m3e-search-bar clearable><m3e-icon slot="leading" variant="rounded" name="search"/><input slot="input" aria-label="Search article languages" placeholder="Find language or title" value={languageQuery} onChange={event=>setLanguageQuery(event.target.value)}/></m3e-search-bar></m3e-list-item>{languages.filter(x=>(x.name+' '+x.lang+' '+x.title).toLowerCase().includes(languageQuery.toLowerCase())).map(x=><m3e-list-item-button key={x.lang} selected={x.lang===article.lang} onClick={()=>{setShowLanguages(false);setLanguageQuery('');onChooseLanguage(x.lang,x.title);}}><m3e-icon slot="leading" variant="rounded" name={x.lang===article.lang?'check_circle':'language'}/><span>{x.name||x.lang}</span><span slot="supporting-text">{x.title} · {x.lang}</span></m3e-list-item-button>)}</m3e-list></m3e-card>}
 
     {loading&&<m3e-list-item><m3e-circular-progress-indicator indeterminate/>Loading full article…</m3e-list-item>}
-    {html&&<ArticleRenderer html={html} lang={article.lang||'en'} dataSaver={dataSaver} expandedSections={expandedSections} fontSize={fontSize} fontStyle={fontStyle} imageBackground={imageBackground} renderMath={renderMath} pageImageUri={article.thumbnail?.source} onLinkClick={title=>{const target=title.trim();if(target)window.dispatchEvent(new CustomEvent('wikireader:open-article',{detail:{title:target,lang:article.lang||'en'}}));}}/>}
+    {html&&<ArticleRenderer html={html} lang={article.lang||'en'} dataSaver={dataSaver} expandedSections={expandedSections} fontSize={fontSize} fontStyle={fontStyle} imageBackground={imageBackground} renderMath={renderMath} darkTheme={prefs.theme === 'dark' || (prefs.theme === 'auto' && systemDark)} pageImageUri={article.thumbnail?.source} onLinkClick={title=>{const target=title.trim();if(target)window.dispatchEvent(new CustomEvent('wikireader:open-article',{detail:{title:target,lang:article.lang||'en'}}));}}/>}
     {!loading&&!html&&<m3e-list-item>The full article could not be loaded. A cached copy may be available when you reconnect.</m3e-list-item>}
   </>;
 }
@@ -704,20 +705,20 @@ function AboutScreen() {
     </div></m3e-card>
     <m3e-list variant="segmented">
       <m3e-list-item><m3e-icon variant="rounded" slot="leading" name="info"/><span>Version</span><span slot="supporting-text">2.5.5 desktop</span></m3e-list-item>
-      <m3e-list-item-button onClick={() => window.open('https://github.com/nsh07/WikiReader', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="code"/><span>Source code</span><span slot="supporting-text">GitHub</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
-      <m3e-list-item-button onClick={() => window.open('https://github.com/nsh07/WikiReader/blob/main/LICENSE', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="gavel"/><span>License</span><span slot="supporting-text">GPL v3.0</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
-      <m3e-list-item-button onClick={() => window.open('https://github.com/nsh07/WikiReader/releases', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="system_update_alt"/><span>Releases</span><span slot="supporting-text">Download the latest version</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
-      <m3e-list-item-button onClick={() => window.open('https://hosted.weblate.org/engage/wikireader/', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="translate"/><span>Translate WikiReader</span><span slot="supporting-text">Help translate the app.</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => openUrl('https://github.com/nsh07/WikiReader').catch(() => {})}><m3e-icon variant="rounded" slot="leading" name="code"/><span>Source code</span><span slot="supporting-text">GitHub</span></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => openUrl('https://github.com/nsh07/WikiReader/blob/main/LICENSE').catch(() => {})}><m3e-icon variant="rounded" slot="leading" name="gavel"/><span>License</span><span slot="supporting-text">GPL v3.0</span></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => openUrl('https://github.com/nsh07/WikiReader/releases').catch(() => {})}><m3e-icon variant="rounded" slot="leading" name="system_update_alt"/><span>Releases</span><span slot="supporting-text">Download the latest version</span></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => openUrl('https://hosted.weblate.org/engage/wikireader/').catch(() => {})}><m3e-icon variant="rounded" slot="leading" name="translate"/><span>Translate WikiReader</span><span slot="supporting-text">Help translate the app.</span></m3e-list-item-button>
     </m3e-list>
     <m3e-heading level="6" variant="label" size="large">Author</m3e-heading>
     <m3e-list variant="segmented">
-      <m3e-list-item-button onClick={() => window.open('https://github.com/nsh07', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="code"/><span>Nishant Mishra</span><span slot="supporting-text">Other projects</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
-      <m3e-list-item-button onClick={() => window.open('https://github.com/sponsors/nsh07', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="favorite"/><span>Donate</span><span slot="supporting-text">Support my work</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => openUrl('https://github.com/nsh07').catch(() => {})}><m3e-icon variant="rounded" slot="leading" name="code"/><span>Nishant Mishra</span><span slot="supporting-text">Other projects</span></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => openUrl('https://github.com/sponsors/nsh07').catch(() => {})}><m3e-icon variant="rounded" slot="leading" name="favorite"/><span>Donate</span><span slot="supporting-text">Support my work</span></m3e-list-item-button>
     </m3e-list>
     <m3e-heading level="6" variant="label" size="large">Wikipedia</m3e-heading>
     <m3e-list variant="segmented">
-      <m3e-list-item-button onClick={() => window.open('https://wikipedia.org', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="public"/><span>Wikipedia</span><span slot="supporting-text">Article content and media are supplied by Wikipedia and Wikimedia projects.</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
-      <m3e-list-item-button onClick={() => window.open('https://wikimediafoundation.org/support/', '_blank', 'noopener,noreferrer')}><m3e-icon variant="rounded" slot="leading" name="volunteer_activism"/><span>Support Wikipedia</span><span slot="supporting-text">Donate to the Wikimedia Foundation</span><m3e-icon slot="trailing" variant="rounded" name="open_in_new"/></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => openUrl('https://wikipedia.org').catch(() => {})}><m3e-icon variant="rounded" slot="leading" name="public"/><span>Wikipedia</span><span slot="supporting-text">Article content and media are supplied by Wikipedia and Wikimedia projects.</span></m3e-list-item-button>
+      <m3e-list-item-button onClick={() => openUrl('https://wikimediafoundation.org/support/').catch(() => {})}><m3e-icon variant="rounded" slot="leading" name="volunteer_activism"/><span>Support Wikipedia</span><span slot="supporting-text">Donate to the Wikimedia Foundation</span></m3e-list-item-button>
     </m3e-list>
   </div>;
 }
