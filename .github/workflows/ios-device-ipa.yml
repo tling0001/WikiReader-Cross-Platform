@@ -1,0 +1,96 @@
+name: iOS unsigned device IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'package.json'
+      - 'web-2.10.2.tgz'
+      - 'icons-1.0.20.tgz'
+      - '.github/workflows/ios-device-ipa.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-device-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-unsigned-ipa:
+    name: Build unsigned arm64 iPhone/iPad IPA
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Install JavaScript dependencies
+        run: npm install
+
+      - name: Initialize the Tauri iOS project
+        run: npm run tauri -- ios init --ci
+
+      - name: Build an unsigned physical-device archive
+        run: npm run tauri -- ios build --target aarch64 --no-sign --archive-only --ci
+
+      - name: Package the device archive as an unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE="$(find src-tauri/gen/apple/build -type d -name '*.xcarchive' -print -quit)"
+          if [[ -z "$ARCHIVE" ]]; then
+            echo "No iOS device .xcarchive was produced." >&2
+            find src-tauri/gen/apple -maxdepth 5 -print >&2 || true
+            exit 1
+          fi
+
+          APP="$ARCHIVE/Products/Applications/WikiReader.app"
+          if [[ ! -d "$APP" ]]; then
+            echo "Expected iOS app bundle was not found: $APP" >&2
+            find "$ARCHIVE/Products" -maxdepth 4 -print >&2 || true
+            exit 1
+          fi
+
+          PLATFORM="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleSupportedPlatforms:0' "$APP/Info.plist")"
+          if [[ "$PLATFORM" != "iPhoneOS" ]]; then
+            echo "Refusing to package a simulator or non-device app (platform: $PLATFORM)." >&2
+            exit 1
+          fi
+
+          EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
+          file "$APP/$EXECUTABLE" | tee /tmp/ios-executable-info.txt
+          grep -q 'arm64' /tmp/ios-executable-info.txt
+
+          mkdir -p dist-ipa/Payload
+          ditto "$APP" dist-ipa/Payload/WikiReader.app
+          (
+            cd dist-ipa
+            /usr/bin/zip -qry ../WikiReader-unsigned-device.ipa Payload
+          )
+
+          test -s WikiReader-unsigned-device.ipa
+          unzip -l WikiReader-unsigned-device.ipa | grep -q 'Payload/WikiReader.app/Info.plist'
+          echo "Created unsigned physical-device IPA: WikiReader-unsigned-device.ipa"
+
+      - name: Upload unsigned iOS device IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: WikiReader-iOS-unsigned-device-IPA
+          path: WikiReader-unsigned-device.ipa
+          if-no-files-found: error
+          retention-days: 30
